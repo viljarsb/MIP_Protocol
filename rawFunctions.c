@@ -14,7 +14,7 @@ int readRawPacket(int socket_fd, ethernet_header* ethernet_header, mip_header* m
   msgvec[1].iov_base = mip_header;
   msgvec[1].iov_len  = sizeof(struct mip_header);
   msgvec[2].iov_base = payload;
-  msgvec[2].iov_len = sizeof(struct arpMsg);
+  msgvec[2].iov_len = 1024;
 
   msg.msg_name    = &socket_addr;
   msg.msg_namelen = sizeof(struct sockaddr_ll);
@@ -38,15 +38,26 @@ int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header mip_hea
   /* Match the ethertype in packet_socket.c: */
   ethernet_frame.protocol = htons(ETH_P_MIP);
 
-  /* Point to frame header */
   msgvec[0].iov_base = &ethernet_frame;
   msgvec[0].iov_len  = sizeof(struct ethernet_header);
 
   msgvec[1].iov_base = &mip_header;
   msgvec[1].iov_len = sizeof(struct mip_header);
 
-  msgvec[2].iov_base = buffer;
-  msgvec[2].iov_len = len;
+  //padding to make SDU 32-bit alligned.
+  int counter = len;
+  while((sizeof(struct ethernet_header) + sizeof(mip_header)  + counter)%4 != 0)
+  {
+    counter = counter + 1;
+  }
+
+  char* bufferPadded;
+  bufferPadded = calloc(counter,  sizeof(char));
+  memcpy(&bufferPadded[0], buffer, len);
+
+
+  msgvec[2].iov_base = bufferPadded;
+  msgvec[2].iov_len = counter;
 
 
   /* Allocate a zeroed-out message info struct */
@@ -65,4 +76,5 @@ int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header mip_hea
     free(msg);
     return 1;
   }
+  printf("\n Sendt %d bytes \n", bytes);
 }

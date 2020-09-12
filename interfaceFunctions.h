@@ -6,6 +6,7 @@
 #include <net/ethernet.h>
 #include <ifaddrs.h>
 #include <string.h>
+#include <netinet/ether.h>
 #include "linkedList.h"
 
 typedef struct interface interface;
@@ -17,6 +18,7 @@ struct interface
 
 void findInterfaces(list* interfaceList);
 interface* getInterface(list* interfaceList, int interface);
+void printMac(u_int8_t mac[ETH_ALEN]);
 
 
 

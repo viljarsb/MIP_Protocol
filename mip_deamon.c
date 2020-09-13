@@ -30,7 +30,10 @@ void sendArpResponse(int socket_fd, u_int8_t dst_mip)
   interface* interface = getInterface(interfaces, entry -> via_interface);
   memcpy(&temp, &interface -> sock_addr, sizeof(struct sockaddr_ll));
   sendRawPacket(socket_fd, &temp, mip_header, buffer, sizeof(struct arpMsg), entry -> mac_address);
-  printf("SENDING ARP-RESPONSE TO FROM MIP: %d TO %d\n", mip_header.src_addr, mip_header.dst_addr);
+  if(debug == 1)
+  {
+    printf("\n\nSENDING ARP-RESPONSE -- SRC MIP: %d -- DST MIP: %d\n", mip_header.src_addr, mip_header.dst_addr);
+  }
 }
 
 void sendArpBroadcast(int socket_fd, list* interfaces, u_int8_t lookup)
@@ -58,20 +61,46 @@ void sendArpBroadcast(int socket_fd, list* interfaces, u_int8_t lookup)
   node* tempInterface = interfaces -> head;
   struct sockaddr_ll temp;
 
-  if(debug == 1)
-  {
-    printf("\nSending ARP-BROADCAST from MIP to MIP: %d", myMip, lookup);
-    printMac(dst_addr);
-  }
-
   while(tempInterface != NULL)
   {
     interface* currentInterface = (struct interface*) tempInterface -> data;
     memcpy(&temp, &currentInterface -> sock_addr, sizeof(struct sockaddr_ll));
+    if(debug == 1)
+    {
+      printf("\n\nSENDING ARP-BROADCAST -- SRC MIP: %d -- DST MIP: %d\n", myMip, lookup);
+    }
     sendRawPacket(socket_fd, &temp, mip_header, buffer, sizeof(struct arpMsg), dst_addr);
     tempInterface = tempInterface -> next;
   }
   free(buffer);
+}
+
+void sendPing(int socket_fd, applicationMsg msg, list* interfaces, list* arpCache)
+{
+  arpEntry* entry = getCacheEntry(arpCache, msg.address);
+  if(entry == NULL)
+  {
+    sendArpBroadcast(socket_fd, interfaces, msg.address);
+    return;
+  }
+
+  mip_header mip_header;
+  memset(&mip_header, 0, sizeof(struct mip_header));
+  mip_header.src_addr = myMip;
+  mip_header.dst_addr = msg.address;
+  mip_header.sdu_type = 0x02;
+  mip_header.ttl = 1;
+  mip_header.sdu_length = strlen(msg.payload);
+
+
+  interface* interfaceToUse = getInterface(interfaces, entry -> via_interface);
+  struct sockaddr_ll temp;
+  memcpy(&temp, &interfaceToUse -> sock_addr, sizeof(struct sockaddr_ll));
+  if(debug == 1)
+  {
+    printf("\n\nSENDING PING -- MIP SRC: %d -- MIP DST: %d\n", mip_header.src_addr, mip_header.dst_addr);
+  }
+  sendRawPacket(socket_fd, &temp, mip_header, msg.payload, strlen(msg.payload), entry -> mac_address);
 }
 
 void handleRawPacket(int socket_fd, int activeApplication)
@@ -98,8 +127,7 @@ void handleRawPacket(int socket_fd, int activeApplication)
          {
            if(debug == 1)
            {
-             printf("Recived ARP-REQUEST from MIP: %d -- MAC: ", mip_header.src_addr);
-             printMac(ethernet_header.src_addr);
+             printf("RECEIVED ARP-REQUEST -- MIP SRC: %d -- MIP DST: %d\n", mip_header.src_addr, mip_header.dst_addr);
            }
            addArpEntry(arpCache, mip_header.src_addr, ethernet_header.src_addr, *recivedOnInterface);
            sendArpResponse(socket_fd, mip_header.src_addr);
@@ -114,8 +142,7 @@ void handleRawPacket(int socket_fd, int activeApplication)
          {
            if(debug == 1)
            {
-             printf("Recived ARP-RESPONSE from MIP: %d -- MAC: ", mip_header.src_addr);
-             printMac(ethernet_header.src_addr);
+             printf("RECEIVED ARP-RESPONSE -- SRC MIP: %d -- DST MIP: %d \n", mip_header.src_addr, mip_header.dst_addr);
            }
             addArpEntry(arpCache, mip_header.src_addr, ethernet_header.src_addr, *recivedOnInterface);
          }
@@ -126,8 +153,7 @@ void handleRawPacket(int socket_fd, int activeApplication)
     {
       if(debug == 1)
       {
-        printf("Recived PING from MIP: %d -- MAC: ", mip_header.src_addr);
-        printMac(ethernet_header.src_addr);
+        printf("RECEIVED PING -- MIP SRC: %d -- MIP DST: %d\n", mip_header.src_addr, mip_header.dst_addr);
       }
       applicationMsg msg;
       memset(&msg, 0, sizeof(struct applicationMsg));
@@ -137,6 +163,7 @@ void handleRawPacket(int socket_fd, int activeApplication)
     }
 
     free(buffer);
+    free(recivedOnInterface);
   }
 
 void handleApplicationPacket(int activeApplication, int socket_fd)
@@ -152,32 +179,7 @@ void handleApplicationPacket(int activeApplication, int socket_fd)
 
   else if(msg.address != myMip)
   {
-    arpEntry* entry = getCacheEntry(arpCache, msg.address);
-    if(entry == NULL)
-    {
-      sendArpBroadcast(socket_fd, interfaces, msg.address);
-      return;
-    }
-
-    mip_header mip_header;
-    memset(&mip_header, 0, sizeof(struct mip_header));
-    mip_header.src_addr = myMip;
-    mip_header.dst_addr = msg.address;
-    mip_header.sdu_type = 0x02;
-    mip_header.ttl = 1;
-    mip_header.sdu_length = strlen(msg.payload);
-
-
-    interface* interfaceToUse = getInterface(interfaces, entry -> via_interface);
-    struct sockaddr_ll temp;
-    memcpy(&temp, &interfaceToUse -> sock_addr, sizeof(struct sockaddr_ll));
-    sendRawPacket(socket_fd, &temp, mip_header, msg.payload, strlen(msg.payload), entry -> mac_address);
-
-    if(debug == 1)
-    {
-      printf("Sending PING to MIP: %d -- MAC: ", mip_header.dst_addr);
-      printMac(temp.sll_addr);
-    }
+    sendPing(socket_fd, msg, interfaces, arpCache);
   }
 }
 

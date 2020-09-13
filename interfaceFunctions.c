@@ -1,6 +1,5 @@
 #include "interfaceFunctions.h"
 
-
 void findInterfaces(list* interfaceList)
 {
   struct ifaddrs *ifaces, *ifp;
@@ -43,6 +42,5 @@ interface* getInterface(list* interfaceList, int interface)
 
 char* getMacFormat(u_int8_t mac[ETH_ALEN])
 {
-  return ether_ntoa((struct ether_addr*)mac));
-
+  return ether_ntoa((struct ether_addr*)mac);
 }

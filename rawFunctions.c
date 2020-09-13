@@ -1,5 +1,7 @@
 #include "rawFunctions.h"
 #include "protocol.h"
+#include "interfaceFunctions.h"
+extern int debug;
 
 int readRawPacket(int socket_fd, ethernet_header* ethernet_header, mip_header* mip_header, char* payload, int* interface)
 {
@@ -16,6 +18,7 @@ int readRawPacket(int socket_fd, ethernet_header* ethernet_header, mip_header* m
   msgvec[2].iov_base = payload;
   msgvec[2].iov_len = 1024;
 
+
   msg.msg_name    = &socket_addr;
   msg.msg_namelen = sizeof(struct sockaddr_ll);
   msg.msg_iovlen  = 3;
@@ -23,6 +26,15 @@ int readRawPacket(int socket_fd, ethernet_header* ethernet_header, mip_header* m
 
 	rc = recvmsg(socket_fd, &msg, 0);
   memcpy(interface, &socket_addr.sll_ifindex, sizeof(int));
+
+  if(debug == 1)
+  {
+    printf("\n\nRECEIVED %d BYTES ON INTERFACE: %d\n", rc, socket_addr.sll_ifindex);
+    char* src = getMacFormat(ethernet_header -> src_addr);
+    printf("RECEIVED ETHERNETFRAME -- SRC ETHERNET: %s -- ", src);
+    char* dst = getMacFormat(ethernet_header -> dst_addr);
+    printf("DST ETHERNET: %s\n", dst);
+  }
 }
 
 int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header mip_header, char* buffer, int len, uint8_t dst_addr[])
@@ -76,5 +88,13 @@ int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header mip_hea
     free(msg);
     return 1;
   }
-  printf("\n Sendt %d bytes \n", bytes);
+
+  if(debug == 1)
+  {
+    char* src = getMacFormat(ethernet_frame.src_addr);
+    printf("SENDING ETHERNETFRAME -- SRC ETHERNET %s -- ", src);
+    char* dst = getMacFormat(ethernet_frame.dst_addr);
+    printf("DST ETHERNET: %s\n", dst);
+    printf("SENDT %d BYTES OF DATA OVER INTERFACE %d\n", bytes, socketname -> sll_ifindex);
+  }
 }

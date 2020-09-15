@@ -1,8 +1,8 @@
 #ifndef APPLICATIONFUNCTIONS
 #define APPLICATIONFUNCTIONS
-#include "protocol.h"
-typedef struct applicationMsg applicationMsg;
+#include <stdlib.h>
 
+typedef struct applicationMsg applicationMsg;
 
 struct applicationMsg
 {

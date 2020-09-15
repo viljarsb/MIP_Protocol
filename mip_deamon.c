@@ -1,20 +1,19 @@
-#include "mip_deamon.h"
-
 #include <stdbool.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/epoll.h>
-#include <linux/if_packet.h>
-#include <net/ethernet.h>
-#include <net/if.h>
-#include <arpa/inet.h>
-#include <ifaddrs.h>
-#include <string.h>
-#include <sys/types.h>
 #include <signal.h>
+
+#include "mip_deamon.h"
+#include "arpFunctions.h"
+#include "protocol.h"
+#include "interfaceFunctions.h"
+#include "rawFunctions.h"
+#include "socketFunctions.h"
+#include "epollFunctions.h"
+
 
 u_int8_t MY_MIP_ADDRESS;
 int debug = 0;
@@ -31,7 +30,6 @@ applicationMsg* unsent = NULL;
 */
 void sendArpResponse(int socket_fd, u_int8_t dst_mip)
 {
-
   arpEntry* entry = getCacheEntry(arpCache, dst_mip);
 
   mip_header mip_header;
@@ -115,14 +113,15 @@ void sendArpBroadcast(int socket_fd, list* interfaces, u_int8_t lookup)
 
     @param  a socket-descriptor to send the packet on, the ping msg, a list of interfaes and an arp-cache.
 */
-void sendPing(int socket_fd, applicationMsg* msg, u_int8_t mipDst)
+void sendApplicationData(int socket_fd, applicationMsg* msg, u_int8_t mipDst)
 {
   arpEntry* entry = getCacheEntry(arpCache, msg -> address);
   if(entry == NULL)
   {
     sendArpBroadcast(socket_fd, interfaces, msg -> address);
     unsent = calloc(1, sizeof(struct applicationMsg));
-    memcpy(unsent, msg, sizeof(msg));
+    memcpy(&unsent -> address, &msg -> address, sizeof(u_int8_t));
+    memcpy(unsent -> payload, msg -> payload, strlen(msg -> payload));
     return;
   }
 
@@ -175,9 +174,6 @@ void handleRawPacket(int socket_fd, int activeApplication)
        {
          if(arpMsg.type == 0x00 && arpMsg.mip_address == MY_MIP_ADDRESS)
          {
-           if(debug == 1)
-             printf("RECEIVED ARP-REQUEST -- MIP SRC: %d -- MIP DST: %d\n", mip_header.src_addr, mip_header.dst_addr);
-
            if(getCacheEntry(arpCache, mip_header.src_addr) == NULL)
            {
              addArpEntry(arpCache, mip_header.src_addr, ethernet_header.src_addr, *recivedOnInterface);
@@ -185,6 +181,12 @@ void handleRawPacket(int socket_fd, int activeApplication)
            else
            {
              updateArpEntry(arpCache, mip_header.src_addr, ethernet_header.src_addr, *recivedOnInterface);
+
+           }
+           if(debug == 1)
+           {
+             printf("RECEIVED ARP-REQUEST -- MIP SRC: %d -- MIP DST: %d\n", mip_header.src_addr, mip_header.dst_addr);
+             printArpCache(arpCache);
            }
            sendArpResponse(socket_fd, mip_header.src_addr);
          }
@@ -195,12 +197,17 @@ void handleRawPacket(int socket_fd, int activeApplication)
        {
          if(arpMsg.type == 0x01)
          {
-           if(debug == 1)
-             printf("RECEIVED ARP-RESPONSE -- SRC MIP: %d -- DST MIP: %d \n", mip_header.src_addr, mip_header.dst_addr);
             addArpEntry(arpCache, mip_header.src_addr, ethernet_header.src_addr, *recivedOnInterface);
+
+           if(debug == 1)
+           {
+             printf("RECEIVED ARP-RESPONSE -- SRC MIP: %d -- DST MIP: %d \n", mip_header.src_addr, mip_header.dst_addr);
+             printArpCache(arpCache);
+           }
+
             if(unsent != NULL)
             {
-              sendPing(socket_fd, unsent, unsent -> address);
+              sendApplicationData(socket_fd, unsent, unsent -> address);
               free(unsent);
               unsent = NULL;
             }
@@ -240,13 +247,13 @@ void handleApplicationPacket(int activeApplication, int socket_fd)
   if(msg.address == MY_MIP_ADDRESS)
   {
     if(debug == 1)
-      printf("An application on this host address a packet to it self. Sending the msg in return\n");
+      printf("AN APPLICATION ON THIS HOST ADDRESS A PACKET TO IT SELF. SENDING THE MSG IN RETURN\n");
     sendApplicationMsg(activeApplication, msg.address, msg.payload);
   }
 
   else if(msg.address != MY_MIP_ADDRESS)
   {
-    sendPing(socket_fd, &msg, msg.address);
+    sendApplicationData(socket_fd, &msg, msg.address);
   }
 }
 
@@ -256,7 +263,7 @@ void handle_sigint(int sig)
     printf("MIP_DEAMON FORCE-QUIT\n");
     freeListMemory(interfaces);
     freeListMemory(arpCache);
-    exit(0);
+    exit(EXIT_SUCCESS);
 }
 
 int main(int argc, char* argv[])
@@ -273,7 +280,7 @@ int main(int argc, char* argv[])
     else if(argc == 2 && strcmp(argv[1], "-h") == 0)
     {
       printf("Run program with -d (optional debugmode), <domain path> <mip address>\n");
-      exit(1);
+      exit(EXIT_SUCCESS);
     }
 
     else if(argc == 3)
@@ -285,7 +292,7 @@ int main(int argc, char* argv[])
     else
     {
       printf("Run program with -h as argument for instructions\n");
-      exit(1);
+      exit(EXIT_SUCCESS);
     }
 
     interfaces = createLinkedList(sizeof(interface));
@@ -300,7 +307,7 @@ int main(int argc, char* argv[])
     if (epoll_fd == -1)
     {
        perror("epoll_create");
-       return -1;
+       exit(EXIT_FAILURE);
      }
 
     struct epoll_event events[10];
@@ -312,7 +319,7 @@ int main(int argc, char* argv[])
     while(true)
     {
       amountOfEntries = epoll_wait(epoll_fd, events, 10, -1);
-        signal(SIGINT, handle_sigint);
+      signal(SIGINT, handle_sigint);
        for (int i = 0; i < amountOfEntries; i++)
        {
          if(events[i].data.fd == socket_unix)

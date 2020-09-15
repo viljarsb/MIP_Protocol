@@ -1,12 +1,8 @@
 #ifndef InterfaceFunctions
 #define InterfaceFunctions
 
-#include <stdint.h>
-#include <linux/if_packet.h>
 #include <net/ethernet.h>
-#include <ifaddrs.h>
-#include <string.h>
-#include <netinet/ether.h>
+#include <linux/if_packet.h>
 #include "linkedList.h"
 
 typedef struct interface interface;
@@ -14,6 +10,7 @@ typedef struct interface interface;
 struct interface
 {
   struct sockaddr_ll sock_addr;
+  char* name;
 };
 
 void findInterfaces(list* interfaceList);

@@ -1,9 +1,5 @@
 #ifndef LinkedList
 #define LinkedList
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <string.h>
 
 typedef struct linkedList list;
 typedef struct node node;

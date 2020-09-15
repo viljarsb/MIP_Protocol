@@ -1,9 +1,11 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "socketFunctions.h"
-#include "epollFunctions.h"
 #include "applicationFunctions.h"
-#include <sys/select.h>
 #include <time.h>
+#include <unistd.h>
+
 
 int main(int argc, char* argv[])
 {

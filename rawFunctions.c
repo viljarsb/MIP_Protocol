@@ -1,6 +1,10 @@
 #include "rawFunctions.h"
-#include "protocol.h"
 #include "interfaceFunctions.h"
+#include <sys/socket.h>
+#include <string.h>
+#include <stdio.h>
+#include <arpa/inet.h>
+
 extern int debug;
 
 int readRawPacket(int socket_fd, ethernet_header* ethernet_header, mip_header* mip_header, char* payload, int* interface)
@@ -58,7 +62,7 @@ int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header* mip_he
 
   //padding to make SDU 32-bit alligned.
   int counter = len;
-  while((sizeof(struct ethernet_header) + sizeof(mip_header)  + counter)%4 != 0)
+  while(counter%4 != 0)
   {
     counter = counter + 1;
   }

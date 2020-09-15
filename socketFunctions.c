@@ -1,4 +1,11 @@
 #include "socketFunctions.h"
+#include <sys/socket.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/un.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include "protocol.h"
 
 int createDomainServerSocket(char* domain_path)
 {

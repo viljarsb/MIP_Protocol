@@ -13,5 +13,6 @@ struct arpEntry
 
 void addArpEntry(list* arpCache, u_int8_t mip, u_int8_t mac[ETH_ALEN], int interface);
 arpEntry* getCacheEntry(list* arpCache, uint8_t mip);
+void updateArpEntry(list* arpCache, uint8_t mip, u_int8_t mac[ETH_ALEN], int interface);
 
 #endif

@@ -37,7 +37,7 @@ int readRawPacket(int socket_fd, ethernet_header* ethernet_header, mip_header* m
   }
 }
 
-int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header mip_header, char* buffer, int len, uint8_t dst_addr[])
+int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header* mip_header, char* buffer, int len, uint8_t dst_addr[])
 {
   int bytes;
 	struct ethernet_header ethernet_frame;
@@ -53,7 +53,7 @@ int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header mip_hea
   msgvec[0].iov_base = &ethernet_frame;
   msgvec[0].iov_len  = sizeof(struct ethernet_header);
 
-  msgvec[1].iov_base = &mip_header;
+  msgvec[1].iov_base = mip_header;
   msgvec[1].iov_len = sizeof(struct mip_header);
 
   //padding to make SDU 32-bit alligned.
@@ -85,9 +85,11 @@ int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header mip_hea
   bytes = sendmsg(socket, msg, 0);
   if (bytes == -1) {
     perror("sendmsg");
-    free(msg);
     return 1;
   }
+
+  free(msg);
+  free(bufferPadded);
 
   if(debug == 1)
   {

@@ -27,3 +27,10 @@ arpEntry* getCacheEntry(list* arpCache, uint8_t mip) {
     }
     return NULL;
 }
+
+void updateArpEntry(list* arpCache, uint8_t mip, u_int8_t mac[ETH_ALEN], int interface)
+{
+  arpEntry* entry = getCacheEntry(arpCache, mip);
+  memcpy(entry -> mac_address, mac, ETH_ALEN);
+  entry -> via_interface = interface;
+}

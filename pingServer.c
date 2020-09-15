@@ -53,11 +53,12 @@ int main(int argc, char* argv[])
          {
            //Read and print the msg, and send back a pong response.
            applicationMsg msg = readApplicationMsg(unix_socket);
-           printf("her %s\n", msg.payload);
-           char temp[1000] = "PONG ";
-           strcat(temp, msg.payload);
-
+           printf("MSG: %s\n", msg.payload);
+           char* temp = calloc(strlen(msg.payload) + 1, sizeof(char));
+           strcat(temp, "PONG ");
+           strcat(temp, &msg.payload[5]);
            sendApplicationMsg(unix_socket, msg.address, temp);
+           free(temp);
          }
        }
      }

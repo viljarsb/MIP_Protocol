@@ -14,8 +14,7 @@ void sendApplicationMsg(int domainSocket, u_int8_t destination, char* payload)
 
 applicationMsg readApplicationMsg(int domainSocket)
 {
-  char* buffer = malloc(sizeof(struct applicationMsg));
-  memset(buffer, 0, sizeof(struct applicationMsg));
+  char* buffer = calloc(1, sizeof(struct applicationMsg));
   applicationMsg msg;
   memset(&msg, 0, sizeof(struct applicationMsg));
   read(domainSocket, buffer, sizeof(struct applicationMsg));

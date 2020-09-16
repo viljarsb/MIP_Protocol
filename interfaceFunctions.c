@@ -68,3 +68,24 @@ char* getMacFormat(u_int8_t mac[ETH_ALEN])
 {
   return ether_ntoa((struct ether_addr*)mac);
 }
+
+/*
+    This functions frees memory from interface structs in a list.
+    @Param  a linkedlist of interfaces. 
+*/
+void freeInterfaces(list* interfaceList)
+{
+  if(interfaceList -> head == NULL)
+    return;
+
+  node* tempNode = interfaceList -> head;
+  while(tempNode != NULL)
+  {
+     struct interface* currentInterface = (struct interface*) tempNode -> data;
+     free(currentInterface -> name);
+     tempNode = tempNode -> next;
+ }
+
+ freeListMemory(interfaceList);
+ return;
+}

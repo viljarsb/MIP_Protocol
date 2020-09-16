@@ -16,7 +16,5 @@ struct interface
 void findInterfaces(list* interfaceList);
 interface* getInterface(list* interfaceList, int interface);
 char* getMacFormat(u_int8_t mac[ETH_ALEN]);
-
-
-
+void freeInterfaces(list* interfaceList);
 #endif

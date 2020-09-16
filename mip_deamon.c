@@ -261,7 +261,7 @@ void handleApplicationPacket(int activeApplication, int socket_fd)
 void handle_sigint(int sig)
 {
     printf("MIP_DEAMON FORCE-QUIT\n");
-    freeListMemory(interfaces);
+    void freeInterfaces(interfaces);
     freeListMemory(arpCache);
     exit(EXIT_SUCCESS);
 }

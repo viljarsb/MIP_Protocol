@@ -45,7 +45,6 @@ arpEntry* getCacheEntry(list* arpCache, uint8_t mip) {
 /*
     This function updates the arpEntry in the cache if another host has taken over a MIP.
     @Param  a linkedlist (the arpCache), a new mip and a new mac aswell as the related interface.
-
 */
 void updateArpEntry(list* arpCache, uint8_t mip, u_int8_t mac[ETH_ALEN], int interface)
 {
@@ -54,6 +53,10 @@ void updateArpEntry(list* arpCache, uint8_t mip, u_int8_t mac[ETH_ALEN], int int
   entry -> via_interface = interface;
 }
 
+/*
+    This function prints every arpEntry in the cache.
+    @Param  a linkedlist (the arpCache).
+*/
 void printArpCache(list* arpCache)
 {
   if(arpCache -> head == NULL)

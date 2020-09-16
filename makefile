@@ -1,5 +1,5 @@
-CC = gcc
-CCFLAGS = -g
+CC = gcc 
+CCFLAGS = -g -Wall
 DEPS = applicationFunctions.h arpFunctions.h epollFunctions.h interfaceFunctions.h linkedList.h mipDeamon.h rawFunctions.h socketFunctions.h protocol.h
 
 %.o: %.c $(DEPS)

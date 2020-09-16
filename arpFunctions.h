@@ -2,6 +2,8 @@
 #define ARPFUNCTIONS
 #include "linkedList.h"
 #include <net/ethernet.h>
+#define ARP_BROADCAST 0x00
+#define ARP_RESPONSE 0x01
 typedef struct arpEntry arpEntry;
 
 struct arpEntry

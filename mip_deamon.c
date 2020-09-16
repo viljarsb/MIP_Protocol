@@ -43,7 +43,7 @@ void sendArpResponse(int socket_fd, u_int8_t dst_mip)
   mip_header.sdu_length = sizeof(struct arpMsg);
   mip_header.sdu_type = ARP;
 
-  arpMsg.type = 0x01;
+  arpMsg.type = ARP_RESPONSE;
   arpMsg.mip_address = dst_mip;
 
   char* buffer = malloc(sizeof(struct arpMsg));
@@ -78,7 +78,7 @@ void sendArpBroadcast(int socket_fd, list* interfaces, u_int8_t lookup)
   mip_header.sdu_length = sizeof(struct arpMsg);
   mip_header.sdu_type = ARP;
 
-  arpMsg.type = 0x00;
+  arpMsg.type = ARP_BROADCAST;
   arpMsg.mip_address = lookup;
 
   char* buffer = malloc(sizeof(struct arpMsg));
@@ -172,7 +172,7 @@ void handleRawPacket(int socket_fd, int activeApplication)
       //broadcast
        if(mip_header.dst_addr == 0xFF)
        {
-         if(arpMsg.type == 0x00 && arpMsg.mip_address == MY_MIP_ADDRESS)
+         if(arpMsg.type == ARP_BROADCAST && arpMsg.mip_address == MY_MIP_ADDRESS)
          {
            if(getCacheEntry(arpCache, mip_header.src_addr) == NULL)
            {
@@ -190,12 +190,18 @@ void handleRawPacket(int socket_fd, int activeApplication)
            }
            sendArpResponse(socket_fd, mip_header.src_addr);
          }
+
+         else
+         {
+           if(debug == 1)
+            printf("INTERCEPTED A ARP-BROADCAST MEANT FOR ANOTHER HOST\n");
+         }
        }
 
        //response
        else if(mip_header.dst_addr == MY_MIP_ADDRESS)
        {
-         if(arpMsg.type == 0x01)
+         if(arpMsg.type == ARP_RESPONSE)
          {
             addArpEntry(arpCache, mip_header.src_addr, ethernet_header.src_addr, *recivedOnInterface);
 
@@ -261,7 +267,7 @@ void handleApplicationPacket(int activeApplication, int socket_fd)
 void handle_sigint(int sig)
 {
     printf("MIP_DEAMON FORCE-QUIT\n");
-    void freeInterfaces(interfaces);
+    freeInterfaces(interfaces);
     freeListMemory(arpCache);
     exit(EXIT_SUCCESS);
 }

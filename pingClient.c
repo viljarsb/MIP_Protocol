@@ -40,6 +40,9 @@ int main(int argc, char* argv[])
   clock_t stopwatch;
 
   ping_socket = createDomainClientSocket(domainPath);
+  u_int8_t identify = 0x02;
+  write(ping_socket, &identify, sizeof(u_int8_t));
+  
   sendApplicationMsg(ping_socket, dst_addr, msg);
   stopwatch = clock();
 

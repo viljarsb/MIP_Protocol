@@ -11,7 +11,7 @@ int createDomainServerSocket(char* domain_path)
 {
     int unix_socket;
 
-    unix_socket = socket(AF_UNIX, SOCK_STREAM, 0);
+    unix_socket = socket(AF_UNIX, SOCK_SEQPACKET, 0);
     if (unix_socket < 0)
     {
         perror("socket");
@@ -40,7 +40,7 @@ int createDomainServerSocket(char* domain_path)
 int createDomainClientSocket(char* domain_path)
 {
   int socket_client;
-  socket_client = socket(AF_UNIX, SOCK_STREAM, 0);
+  socket_client = socket(AF_UNIX, SOCK_SEQPACKET, 0);
 
   struct sockaddr_un addr_unix;
   memset(&addr_unix, 0, sizeof(struct sockaddr_un));

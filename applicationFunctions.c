@@ -7,13 +7,14 @@ extern int debug;
     This functions write to a unix domain socket.
     @Param  a domainsocket fd, a destination (MIP) and the application payload.
 */
-void sendApplicationMsg(int domainSocket, u_int8_t destination, char* payload)
+void sendApplicationMsg(int domainSocket, u_int8_t destination, char* payload, int len)
 {
   applicationMsg msg;
   memset(&msg, 0, sizeof(struct applicationMsg));
   msg.address = destination;
-  memcpy(&msg.payload, payload, strlen(payload));
-  write(domainSocket, &msg, sizeof(msg));
+  msg.TTL = 10;
+  memcpy(msg.payload, payload, len);
+  write(domainSocket, &msg, sizeof(struct applicationMsg));
 }
 
 /*
@@ -26,8 +27,8 @@ applicationMsg readApplicationMsg(int domainSocket)
   char* buffer = calloc(1, sizeof(struct applicationMsg));
   applicationMsg msg;
   memset(&msg, 0, sizeof(struct applicationMsg));
-  read(domainSocket, buffer, sizeof(struct applicationMsg));
-  memcpy(&msg, buffer, strlen(buffer));
+  int rc = read(domainSocket, buffer, sizeof(struct applicationMsg));
+  memcpy(&msg, buffer, rc);
   free(buffer);
   return msg;
 }

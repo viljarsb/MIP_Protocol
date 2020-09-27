@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/epoll.h>
+#include <unistd.h>
 #include "socketFunctions.h"
 #include "epollFunctions.h"
 #include "applicationFunctions.h"
@@ -31,6 +32,8 @@ int main(int argc, char* argv[])
 
   int unix_socket;
   unix_socket = createDomainClientSocket(domainPath);
+  u_int8_t identify = 0x02;
+  write(unix_socket, &identify, sizeof(u_int8_t));
 
   int epoll_fd = epoll_create1(0);
   if (epoll_fd == -1)

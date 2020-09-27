@@ -8,6 +8,7 @@ typedef struct ethernet_header ethernet_header;
 typedef struct mip_header mip_header;
 typedef struct arpMsg arpMsg;
 
+#define ROUTING 0x04
 #define PING 0x02
 #define ARP 0x01
 #define ETH_P_MIP 0x88B5

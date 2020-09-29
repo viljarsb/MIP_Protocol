@@ -42,14 +42,14 @@ void sendResponse(int destination, u_int8_t next_hop)
 {
   printf("SENDING ROUTING-RESPONSE FOR MIP: %u\n\n", destination);
 
-  routingMsg msg;
-  memcpy(msg.type, RESPONSE, sizeof(RESPONSE));
-  msg.data = malloc(sizeof(u_int8_t));
-  memcpy(&msg.data, &next_hop, sizeof(u_int8_t));
-  char* buffer = calloc(1, sizeof(RESPONSE) + sizeof(u_int8_t));
-  memcpy(buffer, &msg.type, sizeof(RESPONSE));
-  memcpy(buffer + sizeof(RESPONSE), &msg.data, sizeof(u_int8_t));
-  sendRoutingMsg(destination, buffer, sizeof(RESPONSE) + sizeof(u_int8_t));
+  routingQuery query;
+
+  memcpy(query.type, RESPONSE, sizeof(RESPONSE));
+  query.mip = next_hop;
+
+  char* buffer = calloc(1, sizeof(routingQuery));
+  memcpy(buffer, &query, sizeof(routingQuery));
+  sendRoutingMsg(destination, buffer, sizeof(routingQuery));
   free(buffer);
 }
 
@@ -126,24 +126,23 @@ void handleIncomingMsg()
   msg.data = malloc(rc - 5);
   memcpy(msg.data, applicationMsg -> payload + 3, rc - 5);
 
-  if(memcmp(msg.type, REQUEST, sizeof(REQUEST)) == 0)
+  if(memcmp(REQUEST, applicationMsg -> payload, sizeof(REQUEST)) == 0)
   {
       printf("RECIEVIED ROUTING-REQUEST\n");
-      u_int8_t addr;
-      u_int8_t next_hop;
-      memcpy(&addr, msg.data, sizeof(u_int8_t));
-      next_hop = findNextHop(addr);
-      sendResponse(addr, next_hop);
+      routingQuery query;
+      memcpy(&query, applicationMsg -> payload, sizeof(routingQuery));
+      u_int8_t next_hop = findNextHop(query.mip);
+      sendResponse(query.mip, next_hop);
     }
 
-  else if(memcmp(msg.type, HELLO, sizeof(HELLO)) == 0)
+  else if(memcmp(HELLO, applicationMsg -> payload, sizeof(HELLO)) == 0)
   {
-    printf("RECIEVIED HELLO-BROADCAST -- ADDING TO ROUTINGTABLE\n");
+    printf("RECIEVIED HELLO-BROADCAST FROM MIP: %u -- ADDING TO ROUTINGTABLE\n", applicationMsg -> address);
     addToRoutingTable(applicationMsg -> address, 1, applicationMsg -> address);
     sendUpdate();
   }
 
-  else if(memcmp(msg.type, UPDATE, sizeof(UPDATE)) == 0)
+  else if(memcmp(UPDATE, applicationMsg -> payload, sizeof(UPDATE)) == 0)
   {
         printf("RECIEVIED ROUTING-UPDATE -- UPDATING ROUTINGTABLE\n\n");
         bool changed = false;

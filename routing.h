@@ -11,6 +11,13 @@
 typedef struct routingMsg routingMsg;
 typedef struct routingEntry routingEntry;
 typedef struct updateStructure updateStructure;
+typedef struct routingQuery routingQuery;
+
+struct routingQuery
+{
+  u_int8_t type[3];
+  u_int8_t mip;
+};
 
 struct routingMsg
 {

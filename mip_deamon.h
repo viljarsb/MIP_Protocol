@@ -4,7 +4,7 @@
 #include "applicationFunctions.h"
 
 extern u_int8_t MY_MIP_ADDRESS;
-extern int debug;
+extern bool debug;
 extern list* interfaces;
 extern list* arpCache;
 

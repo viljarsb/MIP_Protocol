@@ -28,13 +28,13 @@ void push(msgQ* q, void* entry)
 
   else
   {
-    struct qNode* tempNode = q -> head;
-    while(tempNode -> next_node != NULL)
+    node = q -> head;
+    while(node -> next_node != NULL)
     {
-      tempNode = tempNode -> next_node;
+      node = node -> next_node;
     }
 
-    tempNode -> next_node = node;
+    node -> next_node = node;
   }
 
   q -> amountOfEntries = q -> amountOfEntries + 1;

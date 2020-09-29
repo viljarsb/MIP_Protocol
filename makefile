@@ -5,7 +5,7 @@ DEPS = applicationFunctions.h arpFunctions.h epollFunctions.h interfaceFunctions
 %.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-all: mipDeamon pingClient pingServer
+all: mipDeamon pingClient pingServer routingDeamon
 
 mipDeamon: mip_deamon.o arpFunctions.o applicationFunctions.o epollFunctions.o interfaceFunctions.o linkedList.o rawFunctions.o socketFunctions.o msgQ.o
 		$(CC) $(CCFLAGS) -o mipDeamon mip_deamon.o arpFunctions.o applicationFunctions.o epollFunctions.o interfaceFunctions.o linkedList.o rawFunctions.o socketFunctions.o msgQ.o
@@ -17,7 +17,7 @@ pingServer: pingServer.o socketFunctions.o applicationFunctions.o epollFunctions
 		$(CC) $(CCFLAGS) -o pingServer pingServer.o socketFunctions.o applicationFunctions.o epollFunctions.o
 
 routingDeamon: routing_deamon.o socketFunctions.o epollFunctions.o applicationFunctions.o linkedList.o
-		$(CC) $(CCFLAGS) -o routingDeamon routing_deamon.o socketFunctions.o applicationFunctions.o epollFunctions.o linkedList.o applicationFunctions.o
+		$(CC) $(CCFLAGS) -o routingDeamon routing_deamon.o socketFunctions.o applicationFunctions.o epollFunctions.o linkedList.o
 
 clean:
-	rm mipDeamon pingServer pingClient *.o
+	rm mipDeamon pingServer pingClient routingDeamon *.o

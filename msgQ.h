@@ -1,5 +1,6 @@
 #ifndef MSGQ
 #define MSGQ
+#include "applicationFunctions.h"
 
 #define MAX_ELEMENTS 15
 typedef struct qNode qNode;
@@ -8,8 +9,12 @@ typedef struct msgQ msgQ;
 struct qNode
 {
     qNode* next_node;
-    int size;
     void* data;
+};
+
+struct waitingMsg{
+  int addr;
+  applicationMsg* appMsg;
 };
 
 struct msgQ
@@ -20,7 +25,7 @@ struct msgQ
 };
 
 msgQ* createQ();
-void push(struct msgQ* q, void* entry, int size);
-qNode* pop(struct msgQ* q);
+void push(struct msgQ* q, void* entry);
+void* pop(struct msgQ* q);
 
 #endif

@@ -12,7 +12,7 @@ msgQ* createQ()
   return q;
 }
 
-void push(msgQ* q, void* entry, int size)
+void push(msgQ* q, void* entry)
 {
   if(q -> amountOfEntries + 1 > MAX_ELEMENTS)
   {
@@ -20,9 +20,7 @@ void push(msgQ* q, void* entry, int size)
   }
   qNode* node = malloc(sizeof(struct qNode));
   node -> next_node = NULL;
-  node -> size = size;
-  node -> data = malloc(size);
-
+  node -> data = entry;
   if(q -> head == NULL)
   {
     q -> head = node;
@@ -42,10 +40,11 @@ void push(msgQ* q, void* entry, int size)
   q -> amountOfEntries = q -> amountOfEntries + 1;
 }
 
-qNode* pop(msgQ* q)
+void* pop(msgQ* q)
 {
   qNode* node = q -> head;
   q -> head = q -> head -> next_node;
   q -> amountOfEntries = q -> amountOfEntries - 1;
-  return node;
+  void* data = node -> data;
+  return data;
 }

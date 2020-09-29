@@ -126,7 +126,7 @@ void handleIncomingMsg()
   msg.data = malloc(rc - 5);
   memcpy(msg.data, applicationMsg -> payload + 3, rc - 5);
 
-  if(memcmp(msg.type, REQUEST, sizeof(RESPONSE)) == 0)
+  if(memcmp(msg.type, REQUEST, sizeof(REQUEST)) == 0)
   {
       printf("RECIEVIED ROUTING-REQUEST\n");
       u_int8_t addr;
@@ -182,6 +182,11 @@ void handleIncomingMsg()
     {
       printf("UPDATED COMPLETE -- TABLE WAS ALTERED -- SENDING UPDATE TO NEIGHBOURS\n\n");
       sendUpdate();
+    }
+
+    else
+      printf("UPDATED COMPLETE -- TABLE WAS NOT ALTERED\n\n");
+
       printf("CURRENT ROUTINGTABLE \n");
       for(int i = 0; i < 255; i++)
       {
@@ -189,15 +194,10 @@ void handleIncomingMsg()
         if(entry != NULL)
           printf("MIP: %u -- COST: %u -- NEXT_HOP: %u\n", entry -> mip_address, entry -> cost, entry -> next_hop);
       }
-    }
-
-    else
-      printf("UPDATED COMPLETE -- TABLE WAS NOT ALTERED\n\n");
-
   free(applicationMsg);
 }
 
-  
+
   free(msg.data);
 }
 

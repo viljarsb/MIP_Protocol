@@ -64,6 +64,7 @@ int main(int argc, char* argv[])
            char* temp = calloc(strlen(msg -> payload) + 1, sizeof(char));
            strcat(temp, "PONG ");
            strcat(temp, &msg -> payload[5]);
+           printf("MSG ADR: %u\n", msg -> address);
            sendApplicationMsg(unix_socket, msg -> address, temp, sizeof(struct applicationMsg));
            free(temp);
          }

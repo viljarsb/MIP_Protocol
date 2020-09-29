@@ -26,7 +26,10 @@ u_int8_t MY_MIP_ADDRESS;
 int debug = 0;
 list* interfaces;
 list* arpCache;
-applicationMsg* unsent = NULL;
+msgQ* waitingQ;
+msgQ* arpQ;
+applicationMsg* unsent;
+
 
 /*
     The funtion constructs an arp response and a mip-header and sends it over to
@@ -38,7 +41,6 @@ applicationMsg* unsent = NULL;
 void sendArpResponse(int socket_fd, u_int8_t dst_mip)
 {
   arpEntry* entry = getCacheEntry(arpCache, dst_mip);
-
   mip_header mip_header;
   arpMsg arpMsg;
   memset(&mip_header, 0, sizeof(struct mip_header));
@@ -61,6 +63,7 @@ void sendArpResponse(int socket_fd, u_int8_t dst_mip)
 
   if(debug == 1)
     printf("\n\nSENDING ARP-RESPONSE -- SRC MIP: %d -- DST MIP: %d\n", mip_header.src_addr, mip_header.dst_addr);
+
   sendRawPacket(socket_fd, &temp, &mip_header, buffer, sizeof(arpMsg), entry -> mac_address);
 }
 
@@ -75,9 +78,10 @@ void sendArpBroadcast(int socket_fd, list* interfaces, u_int8_t lookup)
 {
   mip_header mip_header;
   arpMsg arpMsg;
-  uint8_t dst_addr[ETH_ALEN] = BROADCAST_MAC_ADDR;
   memset(&mip_header, 0, sizeof(struct mip_header));
   memset(&arpMsg, 0, sizeof(struct arpMsg));
+
+  uint8_t dst_addr[ETH_ALEN] = BROADCAST_MAC_ADDR;
 
   mip_header.dst_addr = 0xFF;
   mip_header.src_addr = MY_MIP_ADDRESS;
@@ -120,26 +124,31 @@ void sendArpBroadcast(int socket_fd, list* interfaces, u_int8_t lookup)
 
     @param  a socket-descriptor to send the packet on, the ping msg, a list of interfaes and an arp-cache.
 */
-void sendApplicationData(int socket_fd, applicationMsg* msg, u_int8_t mipDst)
+void sendApplicationData(int socket_fd, applicationMsg* msg,  u_int8_t mipDst)
 {
-  arpEntry* entry = getCacheEntry(arpCache, msg -> address);
-  if(entry == NULL)
-  {
-    sendArpBroadcast(socket_fd, interfaces, msg -> address);
-    unsent = calloc(1, sizeof(struct applicationMsg));
-    memcpy(&unsent -> address, &msg -> address, sizeof(u_int8_t));
-    memcpy(unsent -> payload, msg -> payload, strlen(msg -> payload));
-    return;
-  }
-
   mip_header mip_header;
   memset(&mip_header, 0, sizeof(struct mip_header));
   mip_header.src_addr = MY_MIP_ADDRESS;
-  mip_header.dst_addr = mipDst;
+  mip_header.dst_addr = msg -> address;
   mip_header.sdu_type = PING;
   mip_header.ttl = msg -> TTL;
   mip_header.sdu_length = strlen(msg -> payload);
 
+  arpEntry* entry = getCacheEntry(arpCache, mipDst);
+  if(entry == NULL)
+  {
+    struct waitingMsg* arpWaitEntry = malloc(sizeof(struct waitingMsg));
+    arpWaitEntry -> addr = mipDst;
+    arpWaitEntry -> appMsg = msg;
+    push(arpQ, arpWaitEntry);
+    sendArpBroadcast(socket_fd, interfaces, mipDst);
+    /*
+    unsent = calloc(1, sizeof(struct applicationMsg));
+    memcpy(&unsent, &mipDst, sizeof(u_int8_t));
+    memcpy(&unsent +1, &msg -> address, sizeof(u_int8_t));
+    memcpy(&unsent+2, msg -> payload, strlen(msg -> payload));*/
+    return;
+  }
 
   interface* interfaceToUse = getInterface(interfaces, entry -> via_interface);
   struct sockaddr_ll temp;
@@ -171,6 +180,7 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
 
     int* recivedOnInterface = malloc(sizeof(int));
     readRawPacket(socket_fd, &ethernet_header, &mip_header, buffer, recivedOnInterface);
+
     if(mip_header.sdu_type == ARP)
     {
       struct arpMsg arpMsg;
@@ -226,11 +236,16 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
              printArpCache(arpCache);
            }
 
-            if(unsent != NULL)
+            if(arpQ -> amountOfEntries > 0)
             {
-              sendApplicationData(socket_fd, unsent, unsent -> address);
-              free(unsent);
-              unsent = NULL;
+              struct arpWaitEntry* arpWaitEntry = pop(arpQ);
+              sendApplicationData(socket_fd, arpWaitEntry -> appMsg, arpWaitEntry -> dst);
+
+        /*      u_int8_t addr;
+              applicationMsg* appMsg;
+              memcpy(&addr, &unsent, sizeof(u_int8_t));
+              memcpy(&appMsg, &unsent + 1, sizeof(struct applicationMsg));
+              sendApplicationData(socket_fd, appMsg, addr);*/
             }
          }
        }
@@ -251,16 +266,17 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
         if(pingApplication != -1)
           sendApplicationMsg(pingApplication, msg.address, msg.payload, strlen(msg.payload));
         else
-          if(debug == 1) printf("CAN NOT SEND DATA TO PING APPLICATION -- NO SUCH APPLICATION IS CURRENTLY RUNNING\n");
+          if(debug == 1)
+            printf("CAN NOT SEND DATA TO PING APPLICATION -- NO SUCH APPLICATION IS CURRENTLY RUNNING\n");
       }
 
       else
       {
+        applicationMsg* appMsg = malloc(sizeof(applicationMsg));
+        appMsg -> address = mip_header.dst_addr;
+        memcpy(appMsg -> payload, buffer, strlen(buffer));
+        push(waitingQ, appMsg);
         SendForwardingRequest(routingApplication, mip_header.dst_addr);
-        mip_header.ttl = mip_header.ttl -1;
-        if(mip_header.ttl <= 0)
-          return;
-        //push(msgQ, )
       }
     }
 
@@ -292,7 +308,7 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
 
       @Param a application socket and a raw socket.
 */
-void handleApplicationPacket(int activeApplication, int socket_fd)
+void handleApplicationPacket(int activeApplication, int routingApplication, int socket_fd)
 {
   applicationMsg* msg = calloc(1, sizeof(applicationMsg));
   int rc = readApplicationMsg(activeApplication, msg);
@@ -306,7 +322,9 @@ void handleApplicationPacket(int activeApplication, int socket_fd)
 
   else if(msg -> address != MY_MIP_ADDRESS)
   {
-    sendApplicationData(socket_fd, msg, msg -> address);
+    SendForwardingRequest(routingApplication, msg -> address);
+    push(waitingQ, msg);
+    //sendApplicationData(socket_fd, msg, msg -> address);
   }
 }
 
@@ -317,15 +335,17 @@ void handleRoutingPacket(int socket_fd, int routingApplication)
   struct routingMsg msg;
   memcpy(msg.type, appMsg -> payload, 3);
 
-    if(memcmp(msg.type, RESPONSE, sizeof(u_int8_t) * 3) == 0)
+    if(memcmp(msg.type, RESPONSE, sizeof(RESPONSE)) == 0)
     {
       u_int8_t addr = appMsg -> payload[3];
       if(addr == 255)
-        printf("NO ROUTE FOUND FOR DESTINATION: %u -- DISCARDRING PACKET\n", addr);
+        printf("NO ROUTE FOUND FOR DESTINATION: %u -- DISCARDRING PACKET\n", appMsg -> address);
 
       else
       {
-        printf("ROUTE FOUND FOR DESTINATION: %u\n", addr);
+        applicationMsg* appMsg = pop(waitingQ);
+        printf("ROUTE FOUND FOR DESTINATION: %u -- ROUTING VIA: %u\n", appMsg -> address, addr);
+        sendApplicationData(socket_fd, appMsg, addr);
       }
     }
 
@@ -360,13 +380,14 @@ void handleRoutingPacket(int socket_fd, int routingApplication)
 
 void SendForwardingRequest(int routingSocket, u_int8_t mip)
 {
-  char* buffer = calloc(1, sizeof(struct routingMsg));
+  char* buffer = calloc(1, 4);
   struct routingMsg msg;
   memcpy(msg.type, REQUEST, sizeof(REQUEST));
   msg.data = malloc(1);
   memcpy(msg.data, &mip, sizeof(u_int8_t));
-  memcpy(buffer, &msg, sizeof(msg));
-  sendApplicationMsg(routingSocket, MY_MIP_ADDRESS, buffer , sizeof(struct routingMsg));
+  memcpy(buffer, msg.type, sizeof(REQUEST));
+  memcpy(buffer + sizeof(REQUEST), msg.data, sizeof(u_int8_t));
+  sendApplicationMsg(routingSocket, MY_MIP_ADDRESS, buffer , 4);
 }
 
 //Very simple signal handler.
@@ -410,6 +431,8 @@ int main(int argc, char* argv[])
     interfaces = createLinkedList(sizeof(interface));
     findInterfaces(interfaces);
     arpCache = createLinkedList(sizeof(arpEntry));
+    waitingQ = createQ();
+    arpQ = createQ();
     int socket_fd, socket_application, socket_routing;
 
     socket_application = createDomainServerSocket(domainPath);
@@ -491,7 +514,7 @@ int main(int argc, char* argv[])
          {
              if(events[i].data.fd == pingApplication)
              {
-               handleApplicationPacket(pingApplication, socket_fd);
+               handleApplicationPacket(pingApplication, routingApplication, socket_fd);
              }
 
              else if(events[i].data.fd == routingApplication)

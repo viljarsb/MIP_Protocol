@@ -6,18 +6,25 @@
 #define RSP {0x52, 0x53, 0x50}
 #define UPD {0x55, 0x50, 0x44}
 #define HEL {0x48, 0x45, 0x4c}
-#define INTERNAL 0x00
-#define REMOTE 0x01
 
 
-typedef struct routingMsgIntra msgIntra;
+typedef struct routingMsg routingMsg;
 typedef struct routingEntry routingEntry;
+typedef struct updateStructure updateStructure;
 
-struct routingMsgIntra
+struct routingMsg
 {
   u_int8_t type[3];
-  u_int8_t mip_other;
+  void* data;
 };
+
+struct updateStructure
+{
+  u_int8_t amount;
+  void* data;
+};
+
+
 
 struct routingEntry
 {

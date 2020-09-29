@@ -75,7 +75,6 @@ int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header* mip_he
   msgvec[2].iov_base = bufferPadded;
   msgvec[2].iov_len = counter;
 
-
   /* Allocate a zeroed-out message info struct */
   msg = (struct msghdr *)calloc(1, sizeof(struct msghdr));
   /* Fill out message metadata struc10t */

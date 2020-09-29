@@ -42,8 +42,8 @@ int main(int argc, char* argv[])
   ping_socket = createDomainClientSocket(domainPath);
   u_int8_t identify = 0x02;
   write(ping_socket, &identify, sizeof(u_int8_t));
-  
-  sendApplicationMsg(ping_socket, dst_addr, msg);
+
+  sendApplicationMsg(ping_socket, dst_addr, msg, strlen(msg));
   stopwatch = clock();
 
   FD_ZERO(&set);
@@ -54,9 +54,10 @@ int main(int argc, char* argv[])
 
   if(rc && FD_ISSET(ping_socket, &set))
   {
-    applicationMsg msg = readApplicationMsg(ping_socket);
+    applicationMsg* msg = calloc(1, sizeof(applicationMsg));
+    readApplicationMsg(ping_socket, msg);
 
-    printf("MSG: %s\n", msg.payload);
+    printf("MSG: %s\n", msg -> payload);
     printf("Recieved response in %f seconds\n", (double)(clock() - stopwatch)/1000);
   }
 

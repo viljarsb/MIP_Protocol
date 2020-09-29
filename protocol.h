@@ -12,6 +12,7 @@ typedef struct arpMsg arpMsg;
 #define PING 0x02
 #define ARP 0x01
 #define ETH_P_MIP 0x88B5
+#define DEFAULT_TTL 10;
 #define BROADCAST_MAC_ADDR {0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 
 struct ethernet_header {

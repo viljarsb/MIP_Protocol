@@ -53,7 +53,6 @@ int createDomainClientSocket(char* domain_path)
   }
 
   return socket_client;
-
 }
 
 int createRawSocket()

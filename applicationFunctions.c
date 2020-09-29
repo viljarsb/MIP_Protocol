@@ -10,11 +10,10 @@ extern int debug;
 void sendApplicationMsg(int domainSocket, u_int8_t destination, char* payload, int len)
 {
   applicationMsg msg;
-  memset(&msg, 0, sizeof(struct applicationMsg));
   msg.address = destination;
   msg.TTL = 10;
   memcpy(msg.payload, payload, len);
-  write(domainSocket, &msg, sizeof(struct applicationMsg));
+  write(domainSocket, &msg, 2 + len);
 }
 
 /*
@@ -22,13 +21,8 @@ void sendApplicationMsg(int domainSocket, u_int8_t destination, char* payload, i
     @Param  a domainsocket fd
     @Return   a applicationMsg struct that contains the dst (MIP) and the payload.
 */
-applicationMsg readApplicationMsg(int domainSocket)
+int readApplicationMsg(int domainSocket, applicationMsg* appMsg)
 {
-  char* buffer = calloc(1, sizeof(struct applicationMsg));
-  applicationMsg msg;
-  memset(&msg, 0, sizeof(struct applicationMsg));
-  int rc = read(domainSocket, buffer, sizeof(struct applicationMsg));
-  memcpy(&msg, buffer, rc);
-  free(buffer);
-  return msg;
+  int rc = read(domainSocket, appMsg, sizeof(struct applicationMsg));
+  return rc;
 }

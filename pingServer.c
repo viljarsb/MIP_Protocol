@@ -58,12 +58,13 @@ int main(int argc, char* argv[])
           if(events[i].data.fd == unix_socket)
          {
            //Read and print the msg, and send back a pong response.
-           applicationMsg msg = readApplicationMsg(unix_socket);
-           printf("MSG: %s\n", msg.payload);
-           char* temp = calloc(strlen(msg.payload) + 1, sizeof(char));
+           applicationMsg* msg = calloc(1, sizeof(applicationMsg));
+           readApplicationMsg(unix_socket, msg);
+           printf("MSG: %s\n", msg -> payload);
+           char* temp = calloc(strlen(msg -> payload) + 1, sizeof(char));
            strcat(temp, "PONG ");
-           strcat(temp, &msg.payload[5]);
-           sendApplicationMsg(unix_socket, msg.address, temp);
+           strcat(temp, &msg -> payload[5]);
+           sendApplicationMsg(unix_socket, msg -> address, temp, sizeof(struct applicationMsg));
            free(temp);
          }
        }

@@ -12,6 +12,7 @@
 #include "interfaceFunctions.h"
 #include "rawFunctions.h"
 #include "socketFunctions.h"
+#include "msgQ.h"
 #include "epollFunctions.h"
 #include "routing.h"
 
@@ -233,12 +234,6 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
             }
          }
        }
-
-       //routing
-       else if(mip_header.dst_addr != MY_MIP_ADDRESS)
-       {
-
-       }
     }
 
     //ping
@@ -263,14 +258,17 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
       {
         SendForwardingRequest(routingApplication, mip_header.dst_addr);
         mip_header.ttl = mip_header.ttl -1;
-        //maybe discard packet //save to a q?
+        if(mip_header.ttl <= 0)
+          return;
+        //push(msgQ, )
       }
     }
 
     //routing
     else if(mip_header.sdu_type == ROUTING)
     {
-      printf("RECIEVIED ROUTING-SDU -- MIP SRC: %u -- MIP DEST: %u\n", mip_header.src_addr, mip_header.dst_addr);
+      if(debug)
+        printf("RECIEVIED ROUTING-SDU -- MIP SRC: %u -- MIP DEST: %u\n", mip_header.src_addr, mip_header.dst_addr);
       applicationMsg msg;
       memset(&msg, 0, sizeof(struct applicationMsg));
       memcpy(&msg.address, &mip_header.src_addr, sizeof(u_int8_t));
@@ -279,9 +277,9 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
       if(routingApplication != -1)
         sendApplicationMsg(routingApplication, msg.address, msg.payload, sizeof(msg) - 1);
       else
-        printf("CAN NOT SEND DATA TO ROUTINGDEAMON -- NO ROUTINGDEAMON RUNNING\n");
+        if(debug)
+          printf("CAN NOT SEND DATA TO ROUTINGDEAMON -- NO ROUTINGDEAMON RUNNING\n");
     }
-
 
     free(buffer);
     free(recivedOnInterface);
@@ -296,42 +294,42 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
 */
 void handleApplicationPacket(int activeApplication, int socket_fd)
 {
-  applicationMsg msg = readApplicationMsg(activeApplication);
+  applicationMsg* msg = calloc(1, sizeof(applicationMsg));
+  int rc = readApplicationMsg(activeApplication, msg);
 
-  if(msg.address == MY_MIP_ADDRESS)
+  if(msg -> address == MY_MIP_ADDRESS)
   {
-    sendApplicationMsg(activeApplication, msg.address, msg.payload, strlen(msg.payload));
+    sendApplicationMsg(activeApplication, msg -> address, msg -> payload, strlen(msg -> payload));
     if(debug == 1)
       printf("AN APPLICATION ON THIS HOST ADDRESS A PACKET TO IT SELF. SENDING THE MSG IN RETURN\n");
   }
 
-  else if(msg.address != MY_MIP_ADDRESS)
+  else if(msg -> address != MY_MIP_ADDRESS)
   {
-    sendApplicationData(socket_fd, &msg, msg.address);
+    sendApplicationData(socket_fd, msg, msg -> address);
   }
 }
 
 void handleRoutingPacket(int socket_fd, int routingApplication)
 {
-  applicationMsg applicationMsg = readApplicationMsg(routingApplication);
-  struct routingMsgIntra msg;
-  memcpy(msg.type, applicationMsg.payload, 3);
+  applicationMsg* appMsg = calloc(1, sizeof(applicationMsg));
+  int rc = readApplicationMsg(routingApplication, appMsg);
+  struct routingMsg msg;
+  memcpy(msg.type, appMsg -> payload, 3);
 
     if(memcmp(msg.type, RESPONSE, sizeof(u_int8_t) * 3) == 0)
     {
-      msg.mip_other = applicationMsg.payload[3];
-      if(msg.mip_other == 255)
-      {
-        printf("NO ROUTE FOUND FOR\n");
-      }
+      u_int8_t addr = appMsg -> payload[3];
+      if(addr == 255)
+        printf("NO ROUTE FOUND FOR DESTINATION: %u -- DISCARDRING PACKET\n", addr);
 
       else
       {
-        //we got a route yay
+        printf("ROUTE FOUND FOR DESTINATION: %u\n", addr);
       }
     }
 
-    else if(memcmp(msg.type, HELLO, sizeof(u_int8_t) * 3) == 0 || memcmp(msg.type, UPDATE, sizeof(u_int8_t) * 3) == 0)
+    else if(memcmp(msg.type, HELLO, sizeof(HELLO)) == 0 || memcmp(msg.type, UPDATE, sizeof(UPDATE)) == 0)
     {
       mip_header mip_header;
       uint8_t dst_addr[ETH_ALEN] = BROADCAST_MAC_ADDR;
@@ -339,9 +337,10 @@ void handleRoutingPacket(int socket_fd, int routingApplication)
 
       mip_header.dst_addr = 0xFF;
       mip_header.src_addr = MY_MIP_ADDRESS;
-      mip_header.ttl = 1;
-      mip_header.sdu_length = strlen(applicationMsg.payload);
+      mip_header.ttl = appMsg -> TTL;
+      mip_header.sdu_length = rc - 2;
       mip_header.sdu_type = ROUTING;
+
 
       node* tempInterface = interfaces -> head;
       struct sockaddr_ll temp;
@@ -353,21 +352,21 @@ void handleRoutingPacket(int socket_fd, int routingApplication)
         if(debug == 1)
           printf("\n\nSENDING ROUTING-SDU -- SRC MIP: %d -- DST MIP: %d\n", MY_MIP_ADDRESS, 0xFF);
 
-        sendRawPacket(socket_fd, &temp, &mip_header, applicationMsg.payload, mip_header.sdu_length, dst_addr);
+        sendRawPacket(socket_fd, &temp, &mip_header, appMsg -> payload, mip_header.sdu_length, dst_addr);
         tempInterface = tempInterface -> next;
       }
     }
-
 }
 
 void SendForwardingRequest(int routingSocket, u_int8_t mip)
 {
-  char* buffer = calloc(1, sizeof(struct routingMsgIntra));
-  struct routingMsgIntra msg;
+  char* buffer = calloc(1, sizeof(struct routingMsg));
+  struct routingMsg msg;
   memcpy(msg.type, REQUEST, sizeof(REQUEST));
-  msg.mip_other = mip;
+  msg.data = malloc(1);
+  memcpy(msg.data, &mip, sizeof(u_int8_t));
   memcpy(buffer, &msg, sizeof(msg));
-  sendApplicationMsg(routingSocket, MY_MIP_ADDRESS, buffer , sizeof(struct routingMsgIntra));
+  sendApplicationMsg(routingSocket, MY_MIP_ADDRESS, buffer , sizeof(struct routingMsg));
 }
 
 //Very simple signal handler.
@@ -461,7 +460,6 @@ int main(int argc, char* argv[])
              tempApplication = -1;
              addEpollEntry(routingApplication, epoll_fd);
              write(routingApplication, &MY_MIP_ADDRESS, sizeof(u_int8_t));
-             SendForwardingRequest(routingApplication, 102);
            }
          }
 

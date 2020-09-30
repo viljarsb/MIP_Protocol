@@ -269,10 +269,8 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
         if(debug)
           printf("RECEIVED PING FOR ANOHTER HOST -- FORWARDING TO %u FOR %u\n", mip_header -> dst_addr, mip_header -> src_addr);
         unsent* unsent = malloc(sizeof(unsent));
-        memcpy(unsent -> mip_header, mip_header, sizeof(mip_header));
-        memcpy(unsent -> buffer, buffer, strlen(buffer));
-    //    unsent -> mip_header = mip_header;
-    //    unsent -> buffer = buffer;
+        unsent -> mip_header = mip_header;
+        unsent -> buffer = buffer;
         push(waitingQ, unsent);
         SendForwardingRequest(routingApplication, mip_header -> dst_addr);
       }

@@ -8,7 +8,7 @@
 #define HEL {0x48, 0x45, 0x4c}
 
 
-typedef struct routingMsg routingMsg;
+typedef struct helloMsg helloMsg;
 typedef struct routingEntry routingEntry;
 typedef struct updateStructure updateStructure;
 typedef struct routingQuery routingQuery;
@@ -19,14 +19,14 @@ struct routingQuery
   u_int8_t mip;
 };
 
-struct routingMsg
+struct helloMsg
 {
   u_int8_t type[3];
-  void* data;
 };
 
 struct updateStructure
 {
+  u_int8_t type[3];
   u_int8_t amount;
   void* data;
 };

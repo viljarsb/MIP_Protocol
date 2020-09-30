@@ -57,8 +57,8 @@ void sendHello()
 {
   printf("SENDING HELLO-MSG TO NEIGHBOURS\n\n");
   char* buffer = calloc(1, 3);
-  routingMsg msg;
-  memcpy(msg.type, HELLO, sizeof(HELLO));
+  helloMsg msg;
+  memcpy(&msg.type, HELLO, sizeof(HELLO));
   memcpy(buffer, &msg, sizeof(HELLO));
   sendRoutingMsg(MY_MIP_ADDRESS, buffer, sizeof(HELLO));
   free(buffer);
@@ -68,11 +68,10 @@ void sendUpdate()
 {
   printf("SENDING UPDATE-MSG TO NEIGHBOURS\n\n");
   char* buffer = calloc(1, 3);
-  routingMsg msg;
-  memcpy(msg.type, UPDATE, sizeof(UPDATE));
-  memcpy(buffer, &msg.type, sizeof(UPDATE));
+  updateStructure updateStructure;
+  memcpy(updateStructure.type, UPDATE, sizeof(UPDATE));
+  memcpy(buffer, updateStructure.type, sizeof(UPDATE));
 
-  struct updateStructure updateStructure;
   updateStructure.amount = 0;
   updateStructure.data = malloc(0);
 
@@ -82,7 +81,7 @@ void sendUpdate()
     {
       updateStructure.amount = updateStructure.amount + 1;
       updateStructure.data = realloc(updateStructure.data, sizeof(routingEntry) * updateStructure.amount);
-      memcpy(updateStructure.data + (updateStructure.amount-1) * sizeof(routingEntry), &*routingTable[i], sizeof(struct routingEntry));
+      memcpy(updateStructure.data + (updateStructure.amount -1) * sizeof(routingEntry), &*routingTable[i], sizeof( routingEntry));
     }
   }
 
@@ -121,19 +120,16 @@ void handleIncomingMsg()
 {
   applicationMsg* applicationMsg = calloc(1, sizeof(struct applicationMsg));
   int rc = readApplicationMsg(routingSocket, applicationMsg);
-  routingMsg msg;
-  memcpy(msg.type, applicationMsg -> payload, 3);
-  msg.data = malloc(rc - 5);
-  memcpy(msg.data, applicationMsg -> payload + 3, rc - 5);
+  printf("RECIEVIED %d BYTES FROM MIP-DEAMON\n", rc);
 
   if(memcmp(REQUEST, applicationMsg -> payload, sizeof(REQUEST)) == 0)
   {
-      printf("RECIEVIED ROUTING-REQUEST\n");
-      routingQuery query;
-      memcpy(&query, applicationMsg -> payload, sizeof(routingQuery));
-      u_int8_t next_hop = findNextHop(query.mip);
-      sendResponse(query.mip, next_hop);
-    }
+    printf("RECIEVIED ROUTING-REQUEST\n");
+    routingQuery query;
+    memcpy(&query, applicationMsg -> payload, sizeof(routingQuery));
+    u_int8_t next_hop = findNextHop(query.mip);
+    sendResponse(query.mip, next_hop);
+  }
 
   else if(memcmp(HELLO, applicationMsg -> payload, sizeof(HELLO)) == 0)
   {
@@ -146,18 +142,19 @@ void handleIncomingMsg()
   {
         printf("RECIEVIED ROUTING-UPDATE -- UPDATING ROUTINGTABLE\n\n");
         bool changed = false;
-        updateStructure updateStructure;
-        memcpy(&updateStructure.amount, msg.data, sizeof(u_int8_t));
-        updateStructure.data = malloc(updateStructure.amount * sizeof(routingEntry));
-        memcpy(updateStructure.data, msg.data + 1, updateStructure.amount * sizeof(routingEntry));
 
-        int currentPos = 1;
+        updateStructure updateStructure;
+        memcpy(&updateStructure, applicationMsg -> payload, sizeof(u_int8_t) * 4);
+        updateStructure.data = malloc(updateStructure.amount * sizeof(routingEntry));
+        memcpy(updateStructure.data, applicationMsg -> payload + 4, updateStructure.amount * sizeof(routingEntry));
+
+        int currentPos = 0;
         int counter = 0;
         routingEntry entry;
         while(counter < updateStructure.amount)
         {
-          memcpy(&entry, msg.data + currentPos, sizeof(struct routingEntry));
-          currentPos = currentPos + sizeof(struct routingEntry);
+          memcpy(&entry, updateStructure.data + currentPos, sizeof(routingEntry));
+          currentPos = currentPos + sizeof(routingEntry);
 
           if(routingTable[entry.mip_address] == NULL)
           {
@@ -193,11 +190,9 @@ void handleIncomingMsg()
         if(entry != NULL)
           printf("MIP: %u -- COST: %u -- NEXT_HOP: %u\n", entry -> mip_address, entry -> cost, entry -> next_hop);
       }
+  }
+
   free(applicationMsg);
-}
-
-
-  free(msg.data);
 }
 
 int main(int argc, char* argv[])
@@ -234,16 +229,14 @@ int main(int argc, char* argv[])
       amountOfEntries = epoll_wait(epoll_fd, events, 1, -1);
       for(int i = 0; i < amountOfEntries; i++)
       {
-         if (events[i].events & EPOLLIN)
+         if(events[i].events & EPOLLIN)
          {
             if(events[i].data.fd == routingSocket)
            {
              handleIncomingMsg();
            }
          }
+
        }
-    }
-
-
-
+     }
 }

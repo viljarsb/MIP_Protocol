@@ -39,6 +39,7 @@ int readRawPacket(int socket_fd, ethernet_header* ethernet_header, mip_header* m
     char* dst = getMacFormat(ethernet_header -> dst_addr);
     printf("DST ETHERNET: %s\n", dst);
   }
+  return rc;
 }
 
 int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header* mip_header, char* buffer, int len, uint8_t dst_addr[])
@@ -102,4 +103,5 @@ int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header* mip_he
     printf("DST ETHERNET: %s\n", dst);
     printf("SENDT %d BYTES OF DATA OVER INTERFACE %d\n", bytes, socketname -> sll_ifindex);
   }
+  return bytes;
 }

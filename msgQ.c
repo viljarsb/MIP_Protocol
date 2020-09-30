@@ -8,7 +8,6 @@ msgQ* createQ()
   msgQ* q = malloc(sizeof(struct msgQ));
   q -> amountOfEntries = 0;
   q -> head = NULL;
-  q -> tail = NULL;
   return q;
 }
 

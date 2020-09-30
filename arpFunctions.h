@@ -3,6 +3,7 @@
 #include "linkedList.h"
 #include "applicationFunctions.h"
 #include <net/ethernet.h>
+#include "protocol.h"
 #define ARP_BROADCAST 0x00
 #define ARP_RESPONSE 0x01
 typedef struct arpEntry arpEntry;
@@ -17,7 +18,8 @@ struct arpEntry
 struct arpWaitEntry
 {
   u_int8_t dst;
-  applicationMsg* appMsg;
+  mip_header* mip_header;
+  char* buffer;
 };
 
 void addArpEntry(list* arpCache, u_int8_t mip, u_int8_t mac[ETH_ALEN], int interface);

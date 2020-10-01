@@ -21,7 +21,6 @@ const u_int8_t RESPONSE[3] = RSP;
 const u_int8_t UPDATE[3] = UPD;
 const u_int8_t HELLO[3] = HEL;
 
-
 u_int8_t MY_MIP_ADDRESS;
 bool debug = false;
 list* interfaces;
@@ -196,7 +195,7 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
 
         if(debug)
           printf("RECEIVED PING FOR ANOHTER HOST -- FORWARDING TO %u FOR %u\n", mip_header -> dst_addr, mip_header -> src_addr);
-          
+
         unsent* unsent = malloc(sizeof(unsent));
         unsent -> mip_header = mip_header;
         unsent -> buffer = buffer;

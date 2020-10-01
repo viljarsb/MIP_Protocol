@@ -5,10 +5,9 @@
 #include <stdio.h>
 #include <stdbool.h>
 extern list* interfaces;
-extern u_int8_t MY_MIP_ADDRESS;
 extern bool debug;
 extern list* arpCache;
-
+extern u_int8_t MY_MIP_ADDRESS;
 /*
     This functions adds another entry into a arp cache.
     @Param  a linkedlist (the arpCache), the mip and the corresponding mac and the interface related to this entry.
@@ -69,7 +68,7 @@ void printArpCache(list* arpCache)
     printf("\n\nARP-CACHE IS CURRENLY EMPTY\n");
     return;
   }
-  printf("\n\nPRINTING CURRENT CACHE ENTRIES\n");
+  printf("\n\nPRINTING CURRENT ARP-CACHE ENTRIES\n");
 
   node* tempNode = arpCache -> head;
   while(tempNode != NULL)

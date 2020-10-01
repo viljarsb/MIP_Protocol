@@ -3,9 +3,12 @@
 #include <string.h>
 #include <sys/epoll.h>
 #include <unistd.h>
+#include <stdbool.h>
 #include "socketFunctions.h"
 #include "epollFunctions.h"
 #include "applicationFunctions.h"
+
+bool debug = true;
 
 //Runs a ping server.
 int main(int argc, char* argv[])
@@ -46,6 +49,8 @@ int main(int argc, char* argv[])
   int amountOfEntries;
   addEpollEntry(unix_socket, epoll_fd);
 
+  if(debug)
+    printf("\n\n ** PING-SERVER RUNNING -- LISTENING FOR PINGS **\n\n");
   //Loop forever.
   while(1)
   {
@@ -60,13 +65,15 @@ int main(int argc, char* argv[])
            //Read and print the msg, and send back a pong response.
            applicationMsg* msg = calloc(1, sizeof(applicationMsg));
            readApplicationMsg(unix_socket, msg);
+           printf("RECIEVIED PING FROM: %u\n", msg -> address);
            printf("MSG: %s\n", msg -> payload);
            char* temp = calloc(strlen(msg -> payload) + 1, sizeof(char));
            strcat(temp, "PONG ");
            strcat(temp, &msg -> payload[5]);
-           printf("MSG ADR: %u\n", msg -> address);
            sendApplicationMsg(unix_socket, msg -> address, temp, sizeof(struct applicationMsg));
            free(temp);
+
+           printf("LISTENING FOR NEW PINGS\n\n");
          }
        }
      }

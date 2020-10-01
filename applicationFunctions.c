@@ -7,13 +7,14 @@ extern int debug;
     This functions write to a unix domain socket.
     @Param  a domainsocket fd, a destination (MIP) and the application payload.
 */
-void sendApplicationMsg(int domainSocket, u_int8_t destination, char* payload, int len)
+int sendApplicationMsg(int domainSocket, u_int8_t destination, char* payload, int len)
 {
   applicationMsg msg;
   msg.address = destination;
   msg.TTL = 10;
   memcpy(msg.payload, payload, len);
-  write(domainSocket, &msg, 2 + len);
+  int bytes = write(domainSocket, &msg, 2 + len);
+  return bytes;
 }
 
 /*

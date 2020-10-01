@@ -31,13 +31,13 @@ struct updateStructure
   void* data;
 };
 
-
-
 struct routingEntry
 {
   u_int8_t mip_address;
   u_int8_t cost;
   u_int8_t next_hop;
 };
+
+
 
 #endif

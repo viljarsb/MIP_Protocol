@@ -36,86 +36,6 @@ struct unsent
 typedef struct unsent unsent;
 
 
-/*
-    The funtion constructs an arp response and a mip-header and sends it over to
-    another funciton along with the instruction of what interface to send on
-    and the destination mac address.
-
-    @param  a socket-descriptor to send the packet on and a destination mip.
-*/
-void sendArpResponse(int socket_fd, u_int8_t dst_mip)
-{
-  arpEntry* entry = getCacheEntry(arpCache, dst_mip);
-  mip_header mip_header;
-  arpMsg arpMsg;
-  memset(&mip_header, 0, sizeof(struct mip_header));
-  memset(&arpMsg, 0, sizeof(struct arpMsg));
-
-  mip_header.dst_addr = entry -> mip_address;
-  mip_header.src_addr = MY_MIP_ADDRESS;
-  mip_header.ttl = 1;
-  mip_header.sdu_length = sizeof(struct arpMsg);
-  mip_header.sdu_type = ARP;
-
-  arpMsg.type = ARP_RESPONSE;
-  arpMsg.mip_address = dst_mip;
-
-  char* buffer = malloc(sizeof(struct arpMsg));
-  memcpy(buffer, &arpMsg, sizeof(struct arpMsg));
-  struct sockaddr_ll temp;
-  interface* interface = getInterface(interfaces, entry -> via_interface);
-  memcpy(&temp, &interface -> sock_addr, sizeof(struct sockaddr_ll));
-
-  if(debug)
-    printf("\n\nSENDING ARP-RESPONSE -- SRC MIP: %d -- DST MIP: %d\n", mip_header.src_addr, mip_header.dst_addr);
-
-  sendRawPacket(socket_fd, &temp, &mip_header, buffer, sizeof(arpMsg), entry -> mac_address);
-}
-
-/*
-    The funtion constructs an arp broadcast and a mip-header and sends it over to
-    another funciton along with the instruction of what interface to send on (all)
-    and the destination mac address (broadcast).
-
-    @param  a socket-descriptor to send the packet on, a list of interfaces and the mip too lookup.
-*/
-void sendArpBroadcast(int socket_fd, list* interfaces, u_int8_t lookup)
-{
-  mip_header mip_header;
-  arpMsg arpMsg;
-  memset(&mip_header, 0, sizeof(struct mip_header));
-  memset(&arpMsg, 0, sizeof(struct arpMsg));
-
-  uint8_t dst_addr[ETH_ALEN] = BROADCAST_MAC_ADDR;
-
-  mip_header.dst_addr = 0xFF;
-  mip_header.src_addr = MY_MIP_ADDRESS;
-  mip_header.ttl = 1;
-  mip_header.sdu_length = sizeof(struct arpMsg);
-  mip_header.sdu_type = ARP;
-
-  arpMsg.type = ARP_BROADCAST;
-  arpMsg.mip_address = lookup;
-
-  char* buffer = malloc(sizeof(struct arpMsg));
-  memset(buffer, 0, sizeof(struct arpMsg));
-  memcpy(buffer, &arpMsg, sizeof(struct arpMsg));
-
-
-  node* tempInterface = interfaces -> head;
-  struct sockaddr_ll temp;
-
-  while(tempInterface != NULL)
-  {
-    interface* currentInterface = (struct interface*) tempInterface -> data;
-    memcpy(&temp, &currentInterface -> sock_addr, sizeof(struct sockaddr_ll));
-    if(debug)
-      printf("\n\nSENDING ARP-BROADCAST -- SRC MIP: %d -- DST MIP: %d\n", MY_MIP_ADDRESS, 0xFF);
-    sendRawPacket(socket_fd, &temp, &mip_header, buffer, sizeof(arpMsg), dst_addr);
-    tempInterface = tempInterface -> next;
-  }
-  free(buffer);
-}
 
 
 /*
@@ -266,8 +186,17 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
 
       else if(mip_header -> dst_addr != MY_MIP_ADDRESS)
       {
+
+        if(mip_header -> ttl - 1 <= 0)
+        {
+          if(debug)
+            printf("RECEIVED PING FOR ANOHTER HOST -- TTL HAS REACHED 0 -- DISCARDING PACKET WITH DESTINATION: %u\n", mip_header -> dst_addr);
+          return;
+        }
+
         if(debug)
           printf("RECEIVED PING FOR ANOHTER HOST -- FORWARDING TO %u FOR %u\n", mip_header -> dst_addr, mip_header -> src_addr);
+          
         unsent* unsent = malloc(sizeof(unsent));
         unsent -> mip_header = mip_header;
         unsent -> buffer = buffer;
@@ -295,7 +224,7 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
           printf("CAN NOT SEND DATA TO ROUTINGDEAMON -- NO ROUTINGDEAMON RUNNING\n");
     }
 
-    free(buffer);
+  //  free(buffer);
     free(recivedOnInterface);
   }
 

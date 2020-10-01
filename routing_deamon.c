@@ -18,6 +18,7 @@ u_int8_t UPDATE[3] = UPD;
 u_int8_t HELLO[3] = HEL;
 u_int8_t MY_MIP_ADDRESS;
 int routingSocket;
+bool debug = true;
 
 routingEntry* findEntry(u_int8_t mip)
 {
@@ -35,12 +36,15 @@ int findNextHop(u_int8_t mip)
 
 void sendRoutingMsg(u_int8_t mip_one, char* buffer, int len)
 {
-  sendApplicationMsg(routingSocket, mip_one, buffer, len);
+  int bytes = sendApplicationMsg(routingSocket, mip_one, buffer, len);
+  if(debug)
+    printf("SENDT %d BYTES TO MIP_DEAMON\n\n", bytes);
 }
 
 void sendResponse(int destination, u_int8_t next_hop)
 {
-  printf("SENDING ROUTING-RESPONSE FOR MIP: %u\n\n", destination);
+  if(debug)
+    printf("SENDING ROUTING-RESPONSE FOR MIP: %u\n", destination);
 
   routingQuery query;
 
@@ -55,7 +59,7 @@ void sendResponse(int destination, u_int8_t next_hop)
 
 void sendHello()
 {
-  printf("SENDING HELLO-MSG TO NEIGHBOURS\n\n");
+  printf("SENDING HELLO-MSG TO NEIGHBOURS\n");
   char* buffer = calloc(1, 3);
   helloMsg msg;
   memcpy(&msg.type, HELLO, sizeof(HELLO));
@@ -66,7 +70,9 @@ void sendHello()
 
 void sendUpdate()
 {
-  printf("SENDING UPDATE-MSG TO NEIGHBOURS\n\n");
+  if(debug)
+    printf("SENDING UPDATE-MSG TO NEIGHBOURS\n\n");
+
   char* buffer = calloc(1, 3);
   updateStructure updateStructure;
   memcpy(updateStructure.type, UPDATE, sizeof(UPDATE));
@@ -95,7 +101,9 @@ void addToRoutingTable(u_int8_t mip, u_int8_t cost, u_int8_t next)
 {
   if(findEntry(mip) == NULL)
   {
-    printf("ADDED %u TO ROUTING-TABLE -- COST: %u -- NEXT HOP: %u\n\n", mip, cost, next);
+    if(debug)
+      printf("ADDED %u TO ROUTING-TABLE -- COST: %u -- NEXT HOP: %u\n\n", mip, cost, next);
+
     routingEntry* entry = malloc(sizeof(routingEntry));
     entry -> mip_address = mip;
     entry -> cost = cost;
@@ -111,6 +119,8 @@ void addToRoutingTable(u_int8_t mip, u_int8_t cost, u_int8_t next)
 
 void updateRoutingEntry(u_int8_t mip, u_int8_t newCost, u_int8_t newNext)
 {
+  if(debug)
+    printf("UPDATING COST OF MIP: %u TO %u WITH NEXT_HOP: %u\n\n", mip, newCost, newNext);
   routingEntry* entry = findEntry(mip);
   entry -> cost = newCost;
   entry -> next_hop = newNext;
@@ -120,76 +130,87 @@ void handleIncomingMsg()
 {
   applicationMsg* applicationMsg = calloc(1, sizeof(struct applicationMsg));
   int rc = readApplicationMsg(routingSocket, applicationMsg);
-  printf("RECIEVIED %d BYTES FROM MIP-DEAMON\n", rc);
+
+  if(debug)
+    printf("RECIEVIED %d BYTES FROM MIP-DEAMON\n", rc);
 
   if(memcmp(REQUEST, applicationMsg -> payload, sizeof(REQUEST)) == 0)
   {
-    printf("RECIEVIED ROUTING-REQUEST\n");
     routingQuery query;
     memcpy(&query, applicationMsg -> payload, sizeof(routingQuery));
+    if(debug)
+      printf("RECIEVIED ROUTING-REQUEST FOR DESTINATION %u\n\n", query.mip);
     u_int8_t next_hop = findNextHop(query.mip);
     sendResponse(query.mip, next_hop);
   }
 
   else if(memcmp(HELLO, applicationMsg -> payload, sizeof(HELLO)) == 0)
   {
-    printf("RECIEVIED HELLO-BROADCAST FROM MIP: %u -- ADDING TO ROUTINGTABLE\n", applicationMsg -> address);
+    if(debug)
+      printf("RECIEVIED HELLO-BROADCAST FROM MIP: %u -- ADDING TO ROUTINGTABLE\n", applicationMsg -> address);
     addToRoutingTable(applicationMsg -> address, 1, applicationMsg -> address);
     sendUpdate();
   }
 
   else if(memcmp(UPDATE, applicationMsg -> payload, sizeof(UPDATE)) == 0)
   {
-        printf("RECIEVIED ROUTING-UPDATE -- UPDATING ROUTINGTABLE\n\n");
-        bool changed = false;
 
-        updateStructure updateStructure;
-        memcpy(&updateStructure, applicationMsg -> payload, sizeof(u_int8_t) * 4);
-        updateStructure.data = malloc(updateStructure.amount * sizeof(routingEntry));
-        memcpy(updateStructure.data, applicationMsg -> payload + 4, updateStructure.amount * sizeof(routingEntry));
+    printf("RECIEVIED ROUTING-UPDATE -- UPDATING ROUTINGTABLE\n");
+    bool changed = false;
 
-        int currentPos = 0;
-        int counter = 0;
-        routingEntry entry;
-        while(counter < updateStructure.amount)
+    updateStructure updateStructure;
+    memcpy(&updateStructure, applicationMsg -> payload, sizeof(u_int8_t) * 4);
+    updateStructure.data = malloc(updateStructure.amount * sizeof(routingEntry));
+    memcpy(updateStructure.data, applicationMsg -> payload + 4, updateStructure.amount * sizeof(routingEntry));
+
+    int currentPos = 0;
+    int counter = 0;
+    routingEntry entry;
+    while(counter < updateStructure.amount)
+    {
+      memcpy(&entry, updateStructure.data + currentPos, sizeof(routingEntry));
+      currentPos = currentPos + sizeof(routingEntry);
+
+      if(routingTable[entry.mip_address] == NULL)
+      {
+        addToRoutingTable(entry.mip_address, entry.cost + 1, applicationMsg -> address);
+        changed = true;
+      }
+
+      else if(routingTable[entry.mip_address] != NULL)
+      {
+        if(entry.cost + 1 < findEntry(entry.mip_address) -> cost)
         {
-          memcpy(&entry, updateStructure.data + currentPos, sizeof(routingEntry));
-          currentPos = currentPos + sizeof(routingEntry);
-
-          if(routingTable[entry.mip_address] == NULL)
-          {
-            addToRoutingTable(entry.mip_address, entry.cost + 1, applicationMsg -> address);
-            changed = true;
-          }
-
-          else if(routingTable[entry.mip_address] != NULL)
-          {
-            if(entry.cost + 1 < findEntry(entry.mip_address) -> cost)
-            {
-              updateRoutingEntry(entry.mip_address, entry.cost + 1, applicationMsg -> address);
-              changed = true;
-              printf("UPDATED NEXT-HOP OF %u\n\n", entry.mip_address);
-            }
-          }
-          counter = counter +1;
+          updateRoutingEntry(entry.mip_address, entry.cost + 1, applicationMsg -> address);
+          changed = true;
+          if(debug)
+            printf("UPDATED NEXT-HOP OF %u\n\n", entry.mip_address);
+        }
+      }
+        counter = counter +1;
     }
 
     if(changed)
     {
-      printf("UPDATED COMPLETE -- TABLE WAS ALTERED -- SENDING UPDATE TO NEIGHBOURS\n\n");
+      if(debug)
+        printf("UPDATED COMPLETE -- TABLE WAS ALTERED -- SENDING UPDATE TO NEIGHBOURS\n\n");
       sendUpdate();
     }
 
     else
-      printf("UPDATED COMPLETE -- TABLE WAS NOT ALTERED\n\n");
-
-      printf("CURRENT ROUTINGTABLE \n");
-      for(int i = 0; i < 255; i++)
+    {
+      if(debug)
       {
-        routingEntry* entry = findEntry(i);
-        if(entry != NULL)
-          printf("MIP: %u -- COST: %u -- NEXT_HOP: %u\n", entry -> mip_address, entry -> cost, entry -> next_hop);
+        printf("UPDATED COMPLETE -- TABLE WAS NOT ALTERED\n\n");
+        printf("CURRENT ROUTINGTABLE \n");
+        for(int i = 0; i < 255; i++)
+        {
+          routingEntry* entry = findEntry(i);
+          if(entry != NULL)
+            printf("MIP: %u -- COST: %u -- NEXT_HOP: %u\n", entry -> mip_address, entry -> cost, entry -> next_hop);
+        }
       }
+    }
   }
 
   free(applicationMsg);
@@ -204,10 +225,13 @@ int main(int argc, char* argv[])
     domainPath = argv[1];
   }
 
-    routingSocket = createDomainClientSocket(domainPath);
-    u_int8_t temp = ROUTING;
-    write(routingSocket, &temp, sizeof(u_int8_t));
-    read(routingSocket, &MY_MIP_ADDRESS, sizeof(u_int8_t));
+  routingSocket = createDomainClientSocket(domainPath);
+  u_int8_t temp = ROUTING;
+  write(routingSocket, &temp, sizeof(u_int8_t));
+  read(routingSocket, &MY_MIP_ADDRESS, sizeof(u_int8_t));
+
+  if(debug)
+    printf("ROUTING_DEAMON STARTED ON HOST %u\n\n", MY_MIP_ADDRESS);
 
     addToRoutingTable(MY_MIP_ADDRESS, 0, MY_MIP_ADDRESS);
     sendHello();

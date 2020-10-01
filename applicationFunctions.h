@@ -11,7 +11,7 @@ struct applicationMsg
   char payload[1024];
 };
 
-void sendApplicationMsg(int domainSocket, u_int8_t destination, char* payload, int len);
+int sendApplicationMsg(int domainSocket, u_int8_t destination, char* payload, int len);
 int readApplicationMsg(int domainSocket, applicationMsg* appMsg);
 
 #endif

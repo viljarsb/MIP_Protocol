@@ -27,6 +27,7 @@ list* interfaces;
 list* arpCache;
 msgQ* waitingQ;
 msgQ* arpQ;
+
 struct unsent
 {
   mip_header* mip_header;
@@ -49,7 +50,25 @@ typedef struct unsent unsent;
 */
 void sendApplicationData(int socket_fd, mip_header* mip_header, char* buffer, u_int8_t mipDst)
 {
-  arpEntry* entry = getCacheEntry(arpCache, mipDst);
+  if(mip_header -> dst_addr == 0xFF)
+  {
+    uint8_t dst_addr[ETH_ALEN] = BROADCAST_MAC_ADDR;
+    node* tempInterface = interfaces -> head;
+    struct sockaddr_ll temp;
+
+    while(tempInterface != NULL)
+    {
+      interface* currentInterface = (struct interface*) tempInterface -> data;
+      memcpy(&temp, &currentInterface -> sock_addr, sizeof(struct sockaddr_ll));
+      if(debug)
+        printf("\n\nSENDING ARP-BROADCAST -- SRC MIP: %d -- DST MIP: %d\n", MY_MIP_ADDRESS, 0xFF);
+      sendRawPacket(socket_fd, &temp, mip_header, buffer, sizeof(arpMsg), dst_addr);
+      tempInterface = tempInterface -> next;
+    }
+    return;
+  }
+
+  arpEntry* entry = getCacheEntry(arpCache, mip_header -> dst_addr);
   if(entry == NULL)
   {
     struct arpWaitEntry* arpWaitEntry = malloc(sizeof(struct arpWaitEntry));
@@ -72,7 +91,7 @@ void sendApplicationData(int socket_fd, mip_header* mip_header, char* buffer, u_
   struct sockaddr_ll temp;
   memcpy(&temp, &interfaceToUse -> sock_addr, sizeof(struct sockaddr_ll));
   if(debug)
-    printf("\n\nSENDING PING -- MIP SRC: %d -- MIP DST: %d\n", mip_header -> src_addr, mip_header -> dst_addr);
+    printf("\n\nSENDING MIP-PING -- MIP SRC: %d -- MIP DST: %d\n", mip_header -> src_addr, mip_header -> dst_addr);
   sendRawPacket(socket_fd, &temp, mip_header, buffer, strlen(buffer), entry -> mac_address);
 }
 
@@ -300,9 +319,10 @@ void handleRoutingPacket(int socket_fd, int routingApplication)
 
     if(query.mip == 255)
     {
-        if(debug)
-          printf("NO ROUTE FOUND FOR DESTINATION: %u -- DISCARDRING PACKET\n", appMsg -> address);
-      }
+      if(debug)
+        printf("NO ROUTE FOUND FOR DESTINATION: %u -- DISCARDRING PACKET\n", appMsg -> address);
+      return;
+    }
 
     else
     {
@@ -339,6 +359,8 @@ void handle_sigint(int sig)
       printf("MIP_DEAMON FORCE-QUIT\n");
     freeInterfaces(interfaces);
     freeListMemory(arpCache);
+
+    //TELL OTHER NODES IM GONE!
     exit(EXIT_SUCCESS);
 }
 

@@ -171,13 +171,13 @@ void handleIncomingMsg()
       memcpy(&entry, updateStructure.data + currentPos, sizeof(routingEntry));
       currentPos = currentPos + sizeof(routingEntry);
 
-      if(routingTable[entry.mip_address] == NULL)
+      if(findEntry(entry.mip_address) == NULL)
       {
         addToRoutingTable(entry.mip_address, entry.cost + 1, applicationMsg -> address);
         changed = true;
       }
 
-      else if(routingTable[entry.mip_address] != NULL)
+      else if(findEntry(entry.mip_address) != NULL)
       {
         if(entry.cost + 1 < findEntry(entry.mip_address) -> cost)
         {
@@ -187,7 +187,8 @@ void handleIncomingMsg()
             printf("UPDATED NEXT-HOP OF %u\n\n", entry.mip_address);
         }
       }
-        counter = counter +1;
+
+      counter = counter +1;
     }
 
     if(changed)

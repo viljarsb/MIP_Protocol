@@ -19,7 +19,7 @@ struct ethernet_header {
     u_int8_t dst_addr[ETH_ALEN];
     u_int8_t src_addr[ETH_ALEN];
     u_int16_t protocol;
-} __attribute__ ((packed));
+}__attribute__ ((packed));
 
 struct mip_header {
   u_int8_t dst_addr;
@@ -27,7 +27,7 @@ struct mip_header {
   u_int8_t ttl:4;
   u_int16_t sdu_length:9;
   u_int8_t sdu_type:3;
-} __attribute__((packed));
+}__attribute__((packed));
 
 struct arpMsg {
   u_int8_t type:1;

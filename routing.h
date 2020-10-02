@@ -7,7 +7,6 @@
 #define UPD {0x55, 0x50, 0x44}
 #define HEL {0x48, 0x45, 0x4c}
 
-
 typedef struct helloMsg helloMsg;
 typedef struct routingEntry routingEntry;
 typedef struct updateStructure updateStructure;

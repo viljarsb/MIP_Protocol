@@ -36,83 +36,12 @@ struct unsent
 typedef struct unsent unsent;
 
 
-
-
-/*
-    The funtion constructs a mip-header with a ping-sdu and sends it over to
-    another funciton along with the instruction of what interface to send on
-    (according to the cache) and the destination mac address (according to cache).
-
-    If the destination mip is not cached, the functions calls the send arp broadcast
-    funtion to first obtain a correct mac to send to.
-
-    @param  a socket-descriptor to send the packet on, the ping msg, a list of interfaes and an arp-cache.
-*/
-void sendApplicationData(int socket_fd, mip_header* mip_header, char* buffer, u_int8_t mipDst)
-{
-  if(mip_header -> dst_addr == 0xFF)
-  {
-    uint8_t dst_addr[ETH_ALEN] = BROADCAST_MAC_ADDR;
-    node* tempInterface = interfaces -> head;
-    struct sockaddr_ll temp;
-
-    while(tempInterface != NULL)
-    {
-      interface* currentInterface = (struct interface*) tempInterface -> data;
-      memcpy(&temp, &currentInterface -> sock_addr, sizeof(struct sockaddr_ll));
-      if(debug)
-        printf("\n\nSENDING ARP-BROADCAST -- SRC MIP: %d -- DST MIP: %d\n", MY_MIP_ADDRESS, 0xFF);
-      sendRawPacket(socket_fd, &temp, mip_header, buffer, sizeof(arpMsg), dst_addr);
-      tempInterface = tempInterface -> next;
-    }
-    return;
-  }
-
-  arpEntry* entry = getCacheEntry(arpCache, mip_header -> dst_addr);
-  if(entry == NULL)
-  {
-    struct arpWaitEntry* arpWaitEntry = malloc(sizeof(struct arpWaitEntry));
-    arpWaitEntry -> dst = mipDst;
-
-    //FIND ANOTHER WAY!!
-    struct mip_header* header = malloc(sizeof(mip_header));
-    memcpy(header, mip_header, sizeof(mip_header));
-    char* buffer2 = malloc(strlen(buffer));
-    memcpy(buffer2, buffer, strlen(buffer));
-
-    arpWaitEntry -> mip_header = header;
-    arpWaitEntry -> buffer = buffer2;
-    push(arpQ, arpWaitEntry);
-    sendArpBroadcast(socket_fd, interfaces, mipDst);
-    return;
-  }
-
-  interface* interfaceToUse = getInterface(interfaces, entry -> via_interface);
-  struct sockaddr_ll temp;
-  memcpy(&temp, &interfaceToUse -> sock_addr, sizeof(struct sockaddr_ll));
-  if(debug)
-    printf("\n\nSENDING MIP-PING -- MIP SRC: %d -- MIP DST: %d\n", mip_header -> src_addr, mip_header -> dst_addr);
-  sendRawPacket(socket_fd, &temp, mip_header, buffer, strlen(buffer), entry -> mac_address);
-}
-
-/*
-    Function read and inspects incoming raw packets.
-    The function may send out arp responses to broadcasts.
-    The function may also cache addresses based on incoming responses.
-    The function can also forward msgs to the current active application in case it reads a ping.
-
-    @Param a raw socket and the current active application socket.
-*/
 void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
 {
-    ethernet_header* ethernet_header = malloc(sizeof(ethernet_header));
-    mip_header* mip_header = malloc(sizeof(mip_header));
-
-    memset(ethernet_header, 0, sizeof(struct ethernet_header));
-    memset(mip_header, 0, sizeof(struct mip_header));
-    char* buffer = malloc(1024);
-    memset(buffer, 0, 1024);
-    int* recivedOnInterface = malloc(sizeof(int));
+    ethernet_header* ethernet_header = calloc(1, sizeof(struct ethernet_header));
+    mip_header* mip_header = calloc(1, sizeof(struct mip_header));
+    char* buffer = calloc(1, 1024);
+    int* recivedOnInterface = calloc(1, sizeof(int));
 
     readRawPacket(socket_fd, ethernet_header, mip_header, buffer, recivedOnInterface);
 
@@ -124,7 +53,7 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
       //request
        if(mip_header -> dst_addr == 0xFF && arpMsg.type == ARP_BROADCAST)
        {
-         if(arpMsg.type == ARP_BROADCAST && arpMsg.mip_address == MY_MIP_ADDRESS)
+         if(arpMsg.mip_address == MY_MIP_ADDRESS)
          {
            if(getCacheEntry(arpCache, mip_header -> src_addr) == NULL)
              addArpEntry(arpCache, mip_header -> src_addr, ethernet_header -> src_addr, *recivedOnInterface);
@@ -134,24 +63,10 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
 
            if(debug)
            {
-             printf("RECEIVED ARP-REQUEST -- MIP SRC: %d -- MIP DST: %d\n", mip_header -> src_addr, mip_header -> dst_addr);
+             printf("RECEIVED ARP-REQUEST -- MIP SRC: %d -- MIP DST: %d\n\n", mip_header -> src_addr, mip_header -> dst_addr);
              printArpCache(arpCache);
            }
            sendArpResponse(socket_fd, mip_header -> src_addr);
-         }
-
-         else
-         {
-           if(getCacheEntry(arpCache, mip_header -> src_addr) == NULL)
-           {
-             addArpEntry(arpCache, mip_header -> src_addr, ethernet_header -> src_addr, *recivedOnInterface);
-             if(debug)
-              printf("INTERCEPTED A ARP-BROADCAST MEANT FOR ANOTHER HOST\n ADDING TO CACHE ANYWAY");
-           }
-           else
-           {
-             updateArpEntry(arpCache, mip_header -> src_addr, ethernet_header -> src_addr, *recivedOnInterface);
-           }
          }
        }
 
@@ -162,7 +77,7 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
 
         if(debug)
         {
-          printf("RECEIVED ARP-RESPONSE -- SRC MIP: %d -- DST MIP: %d \n", mip_header -> src_addr, mip_header -> dst_addr);
+          printf("RECEIVED ARP-RESPONSE -- SRC MIP: %d -- DST MIP: %d\n", mip_header -> src_addr, mip_header -> dst_addr);
           printArpCache(arpCache);
         }
 
@@ -170,11 +85,7 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
         {
           struct arpWaitEntry* arpWaitEntry = pop(arpQ);
           sendApplicationData(socket_fd, arpWaitEntry -> mip_header, arpWaitEntry -> buffer, arpWaitEntry -> dst);
-        /*      u_int8_t addr;
-              applicationMsg* appMsg;
-              memcpy(&addr, &unsent, sizeof(u_int8_t));
-              memcpy(&appMsg, &unsent + 1, sizeof(struct applicationMsg));
-              sendApplicationData(socket_fd, appMsg, addr);*/
+          free(arpWaitEntry);
         }
      }
   }
@@ -187,19 +98,17 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
         applicationMsg msg;
         memset(&msg, 0, sizeof(struct applicationMsg));
         memcpy(&msg.address, &mip_header -> src_addr, sizeof(u_int8_t));
-        memcpy(msg.payload, buffer, sizeof(struct applicationMsg));
+        memcpy(msg.payload, buffer, mip_header -> sdu_length);
 
         if(debug)
-        {
-          printf("RECEIVED PING -- MIP SRC: %d -- MIP DST: %d\n", mip_header -> src_addr, mip_header -> dst_addr);
-        }
+          printf("RECEIVED PING -- MIP SRC: %d -- MIP DST: %d\n\n", mip_header -> src_addr, mip_header -> dst_addr);
 
         if(pingApplication != -1)
           sendApplicationMsg(pingApplication, msg.address, msg.payload, strlen(msg.payload));
 
         else
           if(debug)
-            printf("CAN NOT SEND DATA TO PING APPLICATION -- NO SUCH APPLICATION IS CURRENTLY RUNNING\n");
+            printf("CAN NOT SEND DATA TO PING APPLICATION -- NO SUCH APPLICATION IS CURRENTLY RUNNING\n\n");
       }
 
       else if(mip_header -> dst_addr != MY_MIP_ADDRESS)
@@ -208,18 +117,20 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
         if(mip_header -> ttl - 1 <= 0)
         {
           if(debug)
-            printf("RECEIVED PING FOR ANOHTER HOST -- TTL HAS REACHED 0 -- DISCARDING PACKET WITH DESTINATION: %u\n", mip_header -> dst_addr);
+            printf("RECEIVED PING FOR ANOHTER HOST -- TTL HAS REACHED 0 -- DISCARDING PACKET WITH DESTINATION: %u\n\n", mip_header -> dst_addr);
           return;
         }
 
         if(debug)
-          printf("RECEIVED PING FOR ANOHTER HOST -- FORWARDING TO %u FOR %u\n", mip_header -> dst_addr, mip_header -> src_addr);
+          printf("RECEIVED PING FOR ANOHTER HOST -- TRYING TO FORWARDING TO %u FOR %u\n\n", mip_header -> dst_addr, mip_header -> src_addr);
 
-        unsent* unsent = malloc(sizeof(unsent));
-        unsent -> mip_header = mip_header;
-        unsent -> buffer = buffer;
+        unsent* unsent = malloc(sizeof(struct unsent));
+        unsent -> mip_header = malloc(sizeof(struct mip_header));
+        unsent -> buffer = malloc(mip_header -> sdu_length);
+        memcpy(unsent -> mip_header, mip_header, sizeof(struct mip_header));
+        memcpy(unsent -> buffer, buffer, mip_header -> sdu_length);
         push(waitingQ, unsent);
-        SendForwardingRequest(routingApplication, mip_header -> dst_addr);
+        SendForwardingRequest(routingApplication, unsent -> mip_header -> dst_addr);
       }
     }
 
@@ -227,41 +138,39 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
     else if(mip_header -> sdu_type == ROUTING)
     {
       if(debug)
-        printf("RECIEVIED ROUTING-SDU -- MIP SRC: %u -- MIP DEST: %u\n", mip_header -> src_addr, mip_header -> dst_addr);
+        printf("RECIEVIED ROUTING-SDU -- MIP SRC: %u -- MIP DEST: %u\n\n", mip_header -> src_addr, mip_header -> dst_addr);
 
       applicationMsg msg;
       memset(&msg, 0, sizeof(struct applicationMsg));
       memcpy(&msg.address, &mip_header -> src_addr, sizeof(u_int8_t));
-      memcpy(msg.payload, buffer, sizeof(struct applicationMsg));
+      memcpy(msg.payload, buffer, mip_header -> sdu_length);
 
       if(routingApplication != -1)
-        sendApplicationMsg(routingApplication, msg.address, msg.payload, sizeof(msg) - 1);
+        sendApplicationMsg(routingApplication, msg.address, msg.payload, mip_header -> sdu_length);
 
       else
         if(debug)
-          printf("CAN NOT SEND DATA TO ROUTINGDEAMON -- NO ROUTINGDEAMON RUNNING\n");
+          printf("CAN NOT SEND DATA TO ROUTINGDEAMON -- NO ROUTINGDEAMON RUNNING\n\n");
     }
 
-  //  free(buffer);
+    free(ethernet_header);
     free(recivedOnInterface);
+    free(mip_header);
+    free(buffer);
   }
 
-/*
-      Function read and inspects incoming application packets.
-      The function may send the msg back to the application in case it was addressed to itself.
-      If not the msg is passed on to the send ping function.
-
-      @Param a application socket and a raw socket.
-*/
 void handleApplicationPacket(int activeApplication, int routingApplication, int socket_fd)
 {
   applicationMsg* msg = calloc(1, sizeof(applicationMsg));
   int rc = readApplicationMsg(activeApplication, msg);
 
+  if(debug)
+    printf("RECEIVED %d BYTES FROM APPLICATION\n", rc);
+
   if(msg -> address == MY_MIP_ADDRESS)
   {
     if(debug)
-      printf("AN APPLICATION ON THIS HOST ADDRESS A PACKET TO IT SELF -- SENDING THE MSG IN RETURN\n");
+      printf("A APPLICATION ON THIS HOST ADDRESS A PACKET TO IT SELF -- SENDING THE MSG IN RETURN\n\n");
 
     sendApplicationMsg(activeApplication, msg -> address, msg -> payload, strlen(msg -> payload));
   }
@@ -269,42 +178,37 @@ void handleApplicationPacket(int activeApplication, int routingApplication, int 
   else if(msg -> address != MY_MIP_ADDRESS)
   {
     SendForwardingRequest(routingApplication, msg -> address);
-    mip_header* mip_header = malloc(sizeof(mip_header));
-    mip_header -> src_addr = MY_MIP_ADDRESS;
-    mip_header -> dst_addr = msg -> address;
-    mip_header -> sdu_type = PING;
-    mip_header -> ttl = msg -> TTL;
-    mip_header -> sdu_length = strlen(msg -> payload);
     struct unsent* unsent = malloc(sizeof(struct unsent));
-    unsent -> mip_header = mip_header;
-    unsent -> buffer = msg -> payload;
+    unsent -> mip_header = calloc(1, sizeof(struct mip_header));
+    unsent -> mip_header -> src_addr = MY_MIP_ADDRESS;
+    unsent -> mip_header -> dst_addr = msg -> address;
+    unsent -> mip_header -> sdu_type = PING;
+    unsent -> mip_header -> ttl = msg -> TTL;
+    unsent -> mip_header -> sdu_length = strlen(msg -> payload);
+    unsent -> buffer = calloc(1, unsent -> mip_header -> sdu_length);
+    memcpy(unsent -> buffer, msg -> payload, unsent -> mip_header -> sdu_length);
     push(waitingQ, unsent);
   }
+
+  free(msg);
 }
 
-void sendRoutingBroadcast(int socket_fd, applicationMsg* msg, int len)
+void sendRoutingBroadcast(int socket_fd, char* payload, int len)
 {
-  mip_header mip_header;
-  mip_header.src_addr = MY_MIP_ADDRESS;
-  mip_header.dst_addr = 0xFF;
-  mip_header.sdu_type = ROUTING;
-  mip_header.ttl = msg -> TTL;
-  mip_header.sdu_length = len;
+  if(debug)
+    printf("SENDING ROUTING-SDU -- MIP SRC: %u -- MIP DEST: %u\n", MY_MIP_ADDRESS, 0xFF);
+  mip_header* mip_header = calloc(1, sizeof(struct mip_header));
+  char* buffer = calloc(1, len);
+  memcpy(buffer, payload, len);
+  free(payload);
 
-  uint8_t dst_addr[ETH_ALEN] = BROADCAST_MAC_ADDR;
+  mip_header -> src_addr = MY_MIP_ADDRESS;
+  mip_header -> dst_addr = 0xFF;
+  mip_header -> sdu_type = ROUTING;
+  mip_header -> ttl = 1;
+  mip_header -> sdu_length = len;
 
-  node* tempInterface = interfaces -> head;
-  struct sockaddr_ll temp;
-
-  while(tempInterface != NULL)
-  {
-    interface* currentInterface = (struct interface*) tempInterface -> data;
-    memcpy(&temp, &currentInterface -> sock_addr, sizeof(struct sockaddr_ll));
-    if(debug)
-      printf("\n\nSENDING ROUTING-BROADCAST -- SRC MIP: %d -- DST MIP: %d\n", MY_MIP_ADDRESS, 0xFF);
-    sendRawPacket(socket_fd, &temp, &mip_header, msg -> payload, mip_header.sdu_length, dst_addr);
-    tempInterface = tempInterface -> next;
-  }
+  sendApplicationData(socket_fd, mip_header, buffer, 0xFF);
 }
 
 void handleRoutingPacket(int socket_fd, int routingApplication)
@@ -315,12 +219,13 @@ void handleRoutingPacket(int socket_fd, int routingApplication)
   if(memcmp(RESPONSE, appMsg -> payload, sizeof(RESPONSE)) == 0)
   {
     routingQuery query;
-    memcpy(&query, appMsg -> payload, sizeof(routingQuery));
+    memcpy(&query, &appMsg -> payload, sizeof(routingQuery));
 
     if(query.mip == 255)
     {
       if(debug)
         printf("NO ROUTE FOUND FOR DESTINATION: %u -- DISCARDRING PACKET\n", appMsg -> address);
+      free(pop(waitingQ));
       return;
     }
 
@@ -328,37 +233,52 @@ void handleRoutingPacket(int socket_fd, int routingApplication)
     {
         unsent* unsent = pop(waitingQ);
         if(debug)
+        {
           printf("ROUTE FOUND FOR DESTINATION: %u -- ROUTING VIA: %u\n", unsent -> mip_header -> dst_addr, query.mip);
-        sendApplicationData(socket_fd, unsent -> mip_header, unsent -> buffer, query.mip);
+          printf("SENDING PING-SDU -- MIP SRC: %u -- MIP DST: %u\n", unsent -> mip_header -> src_addr, unsent -> mip_header -> dst_addr);
+        }
+
+        mip_header* mip_header = calloc(1, sizeof(struct mip_header));
+        char* buffer = calloc(1, unsent -> mip_header -> sdu_length);
+        memcpy(mip_header, unsent -> mip_header, sizeof(struct mip_header));
+        memcpy(buffer, unsent -> buffer, mip_header -> sdu_length);
+
+        free(unsent -> mip_header);
+        free(unsent -> buffer);
+        free(unsent);
+        sendApplicationData(socket_fd, mip_header, buffer, query.mip);
       }
   }
 
   else if(memcmp(HELLO, appMsg -> payload, sizeof(HELLO)) == 0 || memcmp(UPDATE, appMsg -> payload, sizeof(UPDATE)) == 0)
   {
-    sendRoutingBroadcast(socket_fd, appMsg, rc - (sizeof(u_int8_t) * 2));
+    char* buffer = malloc(rc - (sizeof(u_int8_t) * 2));
+    memcpy(buffer, appMsg -> payload, rc - (sizeof(u_int8_t) * 2));
+    sendRoutingBroadcast(socket_fd, buffer, rc - (sizeof(u_int8_t) * 2));
   }
+
+  free(appMsg);
 }
 
 void SendForwardingRequest(int routingSocket, u_int8_t mip)
 {
   struct routingQuery query;
   char* buffer = calloc(1, sizeof(routingQuery));
-
   memcpy(query.type, REQUEST, sizeof(REQUEST));
   query.mip = mip;
-
   memcpy(buffer, &query, sizeof(routingQuery));
-
   sendApplicationMsg(routingSocket, MY_MIP_ADDRESS, buffer, sizeof(routingQuery));
+  free(buffer);
 }
 
-//Very simple signal handler.
 void handle_sigint(int sig)
 {
     if(debug)
       printf("MIP_DEAMON FORCE-QUIT\n");
     freeInterfaces(interfaces);
     freeListMemory(arpCache);
+    free(arpQ);
+    free(waitingQ);
 
     //TELL OTHER NODES IM GONE!
     exit(EXIT_SUCCESS);
@@ -434,7 +354,7 @@ int main(int argc, char* argv[])
            if(sdu_type == PING)
            {
              if(debug)
-              printf("\n\nA PING APPLICATION CONNECTED\n");
+              printf("A PING APPLICATION CONNECTED\n\n");
              pingApplication = tempApplication;
              tempApplication = -1;
              addEpollEntry(pingApplication, epoll_fd);
@@ -443,7 +363,7 @@ int main(int argc, char* argv[])
            if(sdu_type == ROUTING)
            {
              if(debug)
-              printf("\n\nA ROUTING_DEAMON APPLICATION CONNECTED\n");
+              printf("A ROUTING_DEAMON APPLICATION CONNECTED\n\n");
              routingApplication = tempApplication;
              tempApplication = -1;
              addEpollEntry(routingApplication, epoll_fd);

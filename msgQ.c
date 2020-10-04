@@ -45,5 +45,6 @@ void* pop(msgQ* q)
   q -> head = q -> head -> next_node;
   q -> amountOfEntries = q -> amountOfEntries - 1;
   void* data = node -> data;
+  free(node);
   return data;
 }

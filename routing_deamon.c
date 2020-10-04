@@ -44,7 +44,7 @@ void sendRoutingMsg(u_int8_t mip_one, char* buffer, int len)
 void sendResponse(int destination, u_int8_t next_hop)
 {
   if(debug)
-    printf("SENDING ROUTING-RESPONSE FOR MIP: %u\n", destination);
+    printf("SENDING ROUTING-RESPONSE FOR MIP: %u -- NEXT HOP: %u\n", destination, next_hop);
 
   routingQuery query;
 

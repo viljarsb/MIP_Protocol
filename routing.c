@@ -5,14 +5,12 @@
 #include <stdio.h>
 #include <string.h>
 
-
 extern bool debug;
 extern u_int8_t MY_MIP_ADDRESS;
-const u_int8_t REQUEST[3];
-const u_int8_t RESPONSE[3];
-const u_int8_t UPDATE[3];
-const u_int8_t HELLO[3];
-
+const u_int8_t REQUEST[3] = REQ;
+const u_int8_t RESPONSE[3] = RSP;
+const u_int8_t UPDATE[3] = UPD;
+const u_int8_t HELLO[3] = HEL;
 
 void SendForwardingRequest(int routingSocket, u_int8_t mip)
 {
@@ -21,7 +19,7 @@ void SendForwardingRequest(int routingSocket, u_int8_t mip)
   memcpy(query.type, REQUEST, sizeof(REQUEST));
   query.mip = mip;
   memcpy(buffer, &query, sizeof(routingQuery));
-  sendApplicationMsg(routingSocket, MY_MIP_ADDRESS, buffer, sizeof(routingQuery));
+  sendApplicationMsg(routingSocket, MY_MIP_ADDRESS, buffer, -1, sizeof(routingQuery));
   free(buffer);
 }
 

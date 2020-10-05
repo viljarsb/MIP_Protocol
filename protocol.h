@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <net/ethernet.h>
 
-
 typedef struct ethernet_header ethernet_header;
 typedef struct mip_header mip_header;
 typedef struct arpMsg arpMsg;

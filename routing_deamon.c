@@ -4,7 +4,6 @@
 #include <sys/epoll.h>
 #include <string.h>
 #include <stdbool.h>
-#include "routing_deamon.h"
 #include "epollFunctions.h"
 #include "socketFunctions.h"
 #include "linkedList.h"
@@ -12,6 +11,8 @@
 #include <time.h>
 #include <sys/timerfd.h>
 #include "applicationFunctions.h"
+#include "routingTable.h"
+#include "routing_deamon.h"
 
 routingEntry* routingTable[255];
 u_int8_t REQUEST[3] = REQ;
@@ -23,141 +24,14 @@ int routingSocket;
 bool debug = true;
 list* timeList;
 
-struct timerEntry
-{
-  u_int8_t mip;
-  time_t time;
-};
-
-void removeFromRouting(u_int8_t mip)
-{
-  for(int i = 0; i < 255; i++)
-  {
-    if(routingTable[i] != NULL && routingTable[i] -> next_hop == mip)
-      routingTable[i] = NULL;
-  }
-}
-
-void removeFromList(u_int8_t mip)
-{
-  if(timeList -> head == NULL)
-    return;
-
-  node* tempNode = timeList -> head;
-  node* last = malloc(sizeof(struct timerEntry));
-  while(tempNode != NULL)
-  {
-     struct timerEntry* current = (struct timerEntry*) tempNode -> data;
-     if(tempNode == timeList -> head)
-     {
-       timeList -> head = NULL;
-       return;
-     }
-
-     if(current -> mip == mip)
-     {
-       last -> next = tempNode -> next;
-     }
-     last = tempNode;
-     tempNode = tempNode -> next;
- }
-}
-
-
-void controlTime()
-{
-  bool changed = false;
-  if(timeList -> head == NULL)
-    return;
-
-  node* tempNode = timeList -> head;
-  while(tempNode != NULL)
-  {
-     struct timerEntry* current = (struct timerEntry*) tempNode -> data;
-     time_t currentTime;
-     time(&currentTime);
-     if(difftime(currentTime, current -> time) > 10)
-     {
-       removeFromRouting(current -> mip);
-       printf("REMOVED ALL PATHS TROUGH %u FROM ROUTING TABLE\n", current -> mip);
-       printf("NO KEEP-ALIVE WAS RECIVED WITHIN TIMEFRAME\n\n");
-       removeFromList(current -> mip);
-     }
-     tempNode = tempNode -> next;
- }
-
- if(changed)
-  sendUpdate();
-
-}
-
-routingEntry* findEntry(u_int8_t mip)
-{
-  return routingTable[mip];
-}
-
-int findNextHop(u_int8_t mip)
-{
-  routingEntry* entry = findEntry(mip);
-  if(entry == NULL)
-    return 255;
-
-  return entry -> next_hop;
-}
-
-void sendRoutingMsg(u_int8_t mip_one, char* buffer, int len)
-{
-  int bytes = sendApplicationMsg(routingSocket, mip_one, buffer, -1, len);
-}
-
-void sendResponse(int destination, u_int8_t next_hop)
-{
-  if(debug)
-    printf("SENDING ROUTING-RESPONSE FOR MIP: %u -- NEXT HOP: %u\n", destination, next_hop);
-
-  routingQuery query;
-
-  memcpy(query.type, RESPONSE, sizeof(RESPONSE));
-  query.mip = next_hop;
-
-  char* buffer = calloc(1, sizeof(routingQuery));
-  memcpy(buffer, &query, sizeof(routingQuery));
-  sendRoutingMsg(destination, buffer, sizeof(routingQuery));
-}
-
 void sendHello()
 {
-  printf("SENDING HELLO-MSG TO NEIGHBOURS\n");
+  printf("SENDING HELLO-MSG TO NEIGHBOURS OVER 255\n");
   char* buffer = calloc(1, 3);
   helloMsg msg;
   memcpy(&msg.type, HELLO, sizeof(HELLO));
   memcpy(buffer, &msg, sizeof(HELLO));
-  sendRoutingMsg(MY_MIP_ADDRESS, buffer, sizeof(HELLO));
-}
-
-void updateTime(u_int8_t mip)
-{
-  if(timeList -> head == NULL)
-    return;
-
-  node* tempNode = timeList -> head;
-  while(tempNode != NULL)
-  {
-     struct timerEntry* current = (struct timerEntry*) tempNode -> data;
-     if(current -> mip == mip)
-     {
-       time(&current -> time);
-       return;
-     }
-     tempNode = tempNode -> next;
- }
-}
-
-void alarm_()
-{
-  printf("SENDING KEEP-ALIVE\n\n");
-  sendHello();
-  controlTime();
+  sendApplicationMsg(routingSocket, MY_MIP_ADDRESS, buffer, 1, sizeof(HELLO));
 }
 
 void sendUpdate()
@@ -186,36 +60,30 @@ void sendUpdate()
   buffer = realloc(buffer, sizeof(u_int8_t) * 4 + (sizeof(routingEntry) * updateStructure.amount));
   memcpy(buffer + 3, &updateStructure.amount, sizeof(u_int8_t));
   memcpy(buffer + 4, updateStructure.data, sizeof(routingEntry) * updateStructure.amount);
-  sendRoutingMsg(MY_MIP_ADDRESS, buffer, 4 + (updateStructure.amount * sizeof(routingEntry)));
+  sendApplicationMsg(routingSocket, MY_MIP_ADDRESS, buffer, 1, 4 + (updateStructure.amount * sizeof(routingEntry)));
 }
 
-void addToRoutingTable(u_int8_t mip, u_int8_t cost, u_int8_t next)
-{
-  if(findEntry(mip) == NULL)
-  {
-    if(debug)
-      printf("ADDED %u TO ROUTING-TABLE -- COST: %u -- NEXT HOP: %u\n\n", mip, cost, next);
-
-    routingEntry* entry = malloc(sizeof(routingEntry));
-    entry -> mip_address = mip;
-    entry -> cost = cost;
-    entry -> next_hop = next;
-    routingTable[mip] = entry;
-  }
-
-  else
-  {
-    updateRoutingEntry(mip, cost, next);
-  }
-}
-
-void updateRoutingEntry(u_int8_t mip, u_int8_t newCost, u_int8_t newNext)
+void sendResponse(int destination, u_int8_t next_hop)
 {
   if(debug)
-    printf("UPDATING COST OF MIP: %u TO %u WITH NEXT_HOP: %u\n\n", mip, newCost, newNext);
-  routingEntry* entry = findEntry(mip);
-  entry -> cost = newCost;
-  entry -> next_hop = newNext;
+    printf("SENDING ROUTING-RESPONSE FOR MIP: %u -- NEXT HOP: %u\n", destination, next_hop);
+
+  routingQuery query;
+
+  memcpy(query.type, RESPONSE, sizeof(RESPONSE));
+  query.mip = next_hop;
+
+  char* buffer = calloc(1, sizeof(routingQuery));
+  memcpy(buffer, &query, sizeof(routingQuery));
+  sendApplicationMsg(routingSocket, destination, buffer, -1, sizeof(routingQuery));
+}
+
+void alarm_()
+{
+  if(debug)
+    printf("SENDING KEEP-ALIVE -- INFORMING NEIGHBOURS OF MY PRESENCE\n\n");
+  sendHello();
+  controlTime();
 }
 
 void handleIncomingMsg()
@@ -240,10 +108,6 @@ void handleIncomingMsg()
       if(debug)
         printf("RECIEVIED HELLO-BROADCAST FROM MIP: %u -- ADDING TO ROUTINGTABLE\n", applicationMsg -> address);
       addToRoutingTable(applicationMsg -> address, 1, applicationMsg -> address);
-      struct timerEntry* timerEntry = malloc(sizeof(struct timerEntry));
-      timerEntry -> mip = applicationMsg -> address;
-      time(&timerEntry -> time);
-      addEntry(timeList, timerEntry);
       sendUpdate();
     }
 
@@ -258,7 +122,8 @@ void handleIncomingMsg()
   else if(memcmp(UPDATE, applicationMsg -> payload, sizeof(UPDATE)) == 0)
   {
 
-    printf("RECIEVIED ROUTING-UPDATE -- UPDATING ROUTINGTABLE\n");
+    if(debug)
+     printf("RECIEVIED ROUTING-UPDATE -- UPDATING ROUTINGTABLE\n");
     bool changed = false;
 
     updateStructure updateStructure;
@@ -338,7 +203,9 @@ int main(int argc, char* argv[])
   read(routingSocket, &MY_MIP_ADDRESS, sizeof(u_int8_t));
 
   addToRoutingTable(MY_MIP_ADDRESS, 0, MY_MIP_ADDRESS);
-  printf("SENDING INITIAL HELLO-BROADCAST\n\n");
+
+  if(debug)
+   printf("SENDING INITIAL HELLO-BROADCAST\n\n");
   sendHello();
 
     int epoll_fd = epoll_create1(0);
@@ -351,15 +218,22 @@ int main(int argc, char* argv[])
      int timer_fd;
      struct itimerspec ts;
      memset(&ts, 0, sizeof(struct itimerspec));
-     ts.it_value.tv_sec = 10;
+     ts.it_value.tv_sec = 5;
      ts.it_value.tv_nsec = 0;
      timer_fd = timerfd_create(CLOCK_REALTIME, 0);
-     if (timer_fd == -1)
-               printf("timerfd_create");
-     timerfd_settime(timer_fd, 0, &ts, NULL);
 
-  //   alarm(10);
-    // signal(SIGALRM, alarm_);
+     if(timer_fd == -1)
+     {
+       printf("timerfd_create");
+       exit(EXIT_FAILURE);
+     }
+
+     if(timerfd_settime(timer_fd, 0, &ts, NULL) < 0)
+     {
+       printf("timerfd_settime");
+       exit(EXIT_FAILURE);
+     }
+
 
     struct epoll_event events[1];
     int amountOfEntries;
@@ -367,7 +241,7 @@ int main(int argc, char* argv[])
     addEpollEntry(timer_fd, epoll_fd);
 
     //Loop forever.
-    while(1)
+    while(true)
     {
       //block until the file descriptor/socket has data to be processed.
       amountOfEntries = epoll_wait(epoll_fd, events, 1, -1);

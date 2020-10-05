@@ -37,8 +37,6 @@ struct routingEntry
   u_int8_t cost;
   u_int8_t next_hop;
 };
-
-
 void SendForwardingRequest(int routingSocket, u_int8_t mip);
 void sendRoutingBroadcast(int socket_fd, char* payload, int len);
 

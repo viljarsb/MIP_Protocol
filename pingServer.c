@@ -81,7 +81,7 @@ int main(int argc, char* argv[])
            char* temp = calloc(bytes - 2 + 1, sizeof(char));
            strcat(temp, "PONG ");
            strcat(temp, &msg -> payload[5]);
-           sendApplicationMsg(unix_socket, msg -> address, temp, bytes - 2);
+           sendApplicationMsg(unix_socket, msg -> address, temp, 0, bytes - 2);
            free(temp);
 
            printf("\nLISTENING FOR NEW PINGS\n\n");

@@ -1,31 +1,33 @@
-#include <stdbool.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <sys/epoll.h>
-#include <signal.h>
+#include <stdbool.h> // Boolean-type.
+#include <stdio.h> // I/O.
+#include <unistd.h> //Standard POSIX.1 functions, constants and types.
+#include <string.h> //Tyoes, macros and functions to manipulate char-arrays.
+#include <sys/epoll.h> //File monitoring.
+#include <signal.h> //Handle signals.
 
-#include "mip_deamon.h"
-#include "arpFunctions.h"
-#include "protocol.h"
-#include "interfaceFunctions.h"
-#include "rawFunctions.h"
-#include "socketFunctions.h"
+#include "mip_deamon.h" //Signatures for functions of this source file.
+#include "protocol.h" //Definitions of constants and datastructures (formats) of the MIP-Protocol.
+#include "applicationFunctions.h"
+#include "arpFunctions.h" //Signatures, definitions and data-structures for arping.
+#include "interfaceFunctions.h" //Signatures of functions and definitions used interfaces.
+#include "rawFunctions.h" //Signatures of functions used to send data over a raw-socket.
+#include "socketFunctions.h" //Signatures for functions used to create different sockets.
 #include "msgQ.h"
 #include "epollFunctions.h"
 #include "routing.h"
 
-u_int8_t REQUEST[3] = REQ;
-u_int8_t RESPONSE[3] = RSP;
-u_int8_t UPDATE[3] = UPD;
-u_int8_t HELLO[3] = HEL;
-u_int8_t MY_MIP_ADDRESS;
-bool debug = false;
-list* interfaces;
-list* arpCache;
-msgQ* waitingQ;
-msgQ* arpQ;
+//Some Routing-SDU codes.
+extern const u_int8_t REQUEST[3];
+extern const u_int8_t RESPONSE[3];
+extern const u_int8_t UPDATE[3];
+extern const u_int8_t HELLO[3];
+
+u_int8_t MY_MIP_ADDRESS; //This node's mip.
+bool debug = false; //Debug flag
+list* interfaces; //LinkedList of interfaces on this host.
+list* arpCache; //LinkedList of entries in arp-cache.
+msgQ* waitingQ; //A q for mip-packets waiting for route info from routing-deamon.
+msgQ* arpQ; //A q for mip-packets waiting for mac of the next jump of their route.
 
 struct unsent
 {
@@ -207,12 +209,16 @@ void handleApplicationPacket(int activeApplication, int routingApplication, int 
     sendApplicationMsg(activeApplication, applicationMsg -> address, applicationMsg -> payload, -1, rc - 2);
   }
 
-  //The msg is addressed to a remote-node
+  //The ping is addressed to a remote-node
   else if(applicationMsg -> address != MY_MIP_ADDRESS)
   {
     //Ask the routing-deamon for the next hop of this msg.
     if(routingApplication != -1)
     {
+
+      if(applicationMsg -> TTL < 0)
+        return;
+
       SendForwardingRequest(routingApplication, applicationMsg -> address);
 
       //Save the msg and q the msg, msg will be handled whenever the routing-deamon answers the request.
@@ -249,7 +255,6 @@ void handleRoutingPacket(int socket_fd, int routingApplication)
   //Construct a applicationMsg pointer and allocate space for this. Then read from the socket into this pointer.
   applicationMsg* applicationMsg = calloc(1, sizeof(struct applicationMsg));
   int rc = readApplicationMsg(routingApplication, applicationMsg);
-
   //The msg recived from the routing-deamon is a RESPONSE to a REQUEST
   if(memcmp(RESPONSE, applicationMsg -> payload, sizeof(RESPONSE)) == 0)
   {

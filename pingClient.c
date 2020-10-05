@@ -28,6 +28,11 @@ int main(int argc, char* argv[])
     strcat(msg, "PING ");
     strcat(msg, argv[2]);
     ttl = atoi(argv[3]);
+    if(ttl < 0)
+    {
+      printf("Please supply a zero (undefined) or another positive ttl");
+      exit(1);
+    }
     domainPath = argv[4];
   }
 

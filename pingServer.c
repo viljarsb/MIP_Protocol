@@ -48,32 +48,43 @@ int main(int argc, char* argv[])
   struct epoll_event events[1];
   int amountOfEntries;
   addEpollEntry(unix_socket, epoll_fd);
+  int bytes;
 
   if(debug)
     printf("\n\n ** PING-SERVER RUNNING -- LISTENING FOR PINGS **\n\n");
+
   //Loop forever.
   while(1)
   {
-    //block until the file descriptor/socket has data to be processed.
+    //block until the socket-fd has data to be processed.
     amountOfEntries = epoll_wait(epoll_fd, events, 1, -1);
      for (int i = 0; i < amountOfEntries; i++)
      {
-       if (events[i].events & EPOLLIN)
+       //Socket closed
+       if(events[i].events & EPOLLHUP)
        {
-          if(events[i].data.fd == unix_socket)
+         printf("\n\n ** MIP-DEAMON SHUTDOWN -- TERMINATING EXECUTION\n");
+         exit(EXIT_SUCCESS);
+       }
+
+       //Data to be read on socket.
+       if(events[i].events & EPOLLIN)
+       {
+
+        if(events[i].data.fd == unix_socket)
          {
            //Read and print the msg, and send back a pong response.
            applicationMsg* msg = calloc(1, sizeof(applicationMsg));
-           readApplicationMsg(unix_socket, msg);
+           bytes = readApplicationMsg(unix_socket, msg);
            printf("RECIEVIED PING FROM: %u\n", msg -> address);
            printf("MSG: %s\n", msg -> payload);
-           char* temp = calloc(strlen(msg -> payload) + 1, sizeof(char));
+           char* temp = calloc(bytes - 2 + 1, sizeof(char));
            strcat(temp, "PONG ");
            strcat(temp, &msg -> payload[5]);
-           sendApplicationMsg(unix_socket, msg -> address, temp, sizeof(struct applicationMsg));
+           sendApplicationMsg(unix_socket, msg -> address, temp, bytes - 2);
            free(temp);
 
-           printf("LISTENING FOR NEW PINGS\n\n");
+           printf("\nLISTENING FOR NEW PINGS\n\n");
          }
        }
      }

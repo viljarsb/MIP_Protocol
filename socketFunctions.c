@@ -4,8 +4,11 @@
 #include <stdlib.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include <stdbool.h>
+#include <stdio.h>
 #include <arpa/inet.h>
 #include "protocol.h"
+extern bool debug;
 
 int createDomainServerSocket(char* domain_path)
 {
@@ -34,6 +37,9 @@ int createDomainServerSocket(char* domain_path)
         exit(EXIT_FAILURE);
     }
 
+    if(debug)
+      printf("CREATED DOMAIN-SERVER-SOCKET -- LISTENING FOR INCOMING CONNECTIONS ON PATH: %s\n\n", domain_path);
+
     return unix_socket;
 }
 
@@ -52,6 +58,9 @@ int createDomainClientSocket(char* domain_path)
       return -1;
   }
 
+  if(debug)
+    printf("CREATED DOMAIN-CLIENT-SOCKET -- CONNECTED TO SERVER-SOCKET ON PATH: %s\n\n", domain_path);
+
   return socket_client;
 }
 
@@ -64,6 +73,9 @@ int createRawSocket()
         perror("socket");
         return -1;
     }
+
+    if(debug)
+      printf("CREATED RAW-SOCKET\n\n");
 
     return sock_fd;
 }

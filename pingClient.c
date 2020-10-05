@@ -4,31 +4,34 @@
 #include "socketFunctions.h"
 #include "applicationFunctions.h"
 #include <time.h>
+#include <stdbool.h>
 #include <unistd.h>
-
+bool debug = false;
 
 int main(int argc, char* argv[])
 {
   u_int8_t dst_addr;
   char* msg;
+  u_int8_t ttl;
   char* domainPath;
 
   if(argc == 2 && strcmp(argv[1], "-h") == 0)
   {
-    printf("Run program with <Destination host> <msg> <domain path>\n");
+    printf("Run program with <Destination host> <msg> <ttl> <domain path>\n");
     exit(1);
   }
 
-  else if(argc == 4)
+  else if(argc == 5)
   {
     dst_addr = atoi(argv[1]);
     msg = calloc(strlen(argv[2]) + 6, sizeof(char));
     strcat(msg, "PING ");
     strcat(msg, argv[2]);
-    domainPath = argv[3];
+    ttl = atoi(argv[3]);
+    domainPath = argv[4];
   }
 
-  else if(argc != 4)
+  else if(argc != 5)
   {
     printf("Program can not run.\nAttempt to run with -h for instructions.\n");
     exit(1);
@@ -43,7 +46,7 @@ int main(int argc, char* argv[])
   u_int8_t identify = 0x02;
   write(ping_socket, &identify, sizeof(u_int8_t));
 
-  sendApplicationMsg(ping_socket, dst_addr, msg, strlen(msg));
+  sendApplicationMsg(ping_socket, dst_addr, msg, ttl, strlen(msg));
   stopwatch = clock();
 
   FD_ZERO(&set);

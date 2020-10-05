@@ -1,29 +1,43 @@
 #include "applicationFunctions.h"
 #include <string.h>
 #include <unistd.h>
-extern int debug;
+#include <stdbool.h>
+#include <stdio.h>
+extern bool debug;
+#define TTL_UNDEFINED 15;
 
 /*
     This functions write to a unix domain socket.
-    @Param  a domainsocket fd, a destination (MIP) and the application payload.
+    @Param  a domainsocket-fd, a MIP-address, the application payload as a char* and the length of the payload.
+    @Retrun  int, the amount of bytes written to the specified socket-fd
 */
-int sendApplicationMsg(int domainSocket, u_int8_t destination, char* payload, int len)
+int sendApplicationMsg(int domainSocket, u_int8_t destination, char* payload, u_int8_t ttl, int len)
 {
   applicationMsg msg;
   msg.address = destination;
-  msg.TTL = 10;
+  if(ttl == 0) {msg.TTL = TTL_UNDEFINED;}
+  else if(ttl == -1) {msg.TTL = 0;}
+  else {msg.TTL = ttl;}
   memcpy(msg.payload, payload, len);
   int bytes = write(domainSocket, &msg, 2 + len);
+
+  if(debug)
+    printf("SENDT %u BYTES OVER DOMAIN-SOCKET %d\n\n", bytes, domainSocket);
+
   return bytes;
 }
 
 /*
-    This functions reads from a unix domain socket.
-    @Param  a domainsocket fd
-    @Return   a applicationMsg struct that contains the dst (MIP) and the payload.
+    This functions reads from a unix domain socket into a specified memory address.
+    @Param  a domainsocket-fd and a pointer to a applicationMsg.
+    @Retrun  int, the amount of bytes written to the specified socket-fd.
 */
 int readApplicationMsg(int domainSocket, applicationMsg* appMsg)
 {
-  int rc = read(domainSocket, appMsg, sizeof(struct applicationMsg));
-  return rc;
+  int bytes = read(domainSocket, appMsg, sizeof(struct applicationMsg));
+
+  if(debug)
+    printf("RECIVED %u BYTES OVER DOMAIN-SOCKET %d\n\n", bytes, domainSocket);
+
+  return bytes;
 }

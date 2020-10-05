@@ -4,8 +4,8 @@
 #include <stdio.h>
 
 /*
-    This function adds another socket filedescriptor to a epollset, so it can be monitored.
-    @Param  the socket fd to add and the epoll filedescriptor to add it to.
+    This function adds another socket-fd to a epollset, so it can be monitored.
+    @Param  the socket fd to add and the epoll-fd to add it to.
     @Return  a int, 0 for ok and -1 for fail.
 */
 int addEpollEntry(int socket_fd, int epoll_fd) {
@@ -21,8 +21,8 @@ int addEpollEntry(int socket_fd, int epoll_fd) {
 }
 
 /*
-    This function removes a socket filedescriptor from a epollset, so its no longer monitored.
-    @Param  the socket fd to remove and the epoll filedescriptor to remove it from.
+    This function removes a socket-fd from a epollset, so its no longer monitored.
+    @Param  the socket-fd to remove and the epoll-fd to remove it from.
     @Return  a int, 0 for ok and -1 for fail.
 */
 int removeEpollEntry(int socket_fd, int epoll_fd) {

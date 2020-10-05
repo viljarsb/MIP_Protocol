@@ -1,5 +1,6 @@
 #ifndef ROUTING_
 #define ROUTING_
+#include <sys/socket.h>
 
 //Routing related codes
 #define REQ {0x52, 0x45, 0x51}
@@ -38,5 +39,7 @@ struct routingEntry
 };
 
 
+void SendForwardingRequest(int routingSocket, u_int8_t mip);
+void sendRoutingBroadcast(int socket_fd, char* payload, int len);
 
 #endif

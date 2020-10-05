@@ -9,7 +9,6 @@
 
 extern int debug;
 extern list* interfaces;
-extern list* arpCache;
 extern msgQ* waitingQ;
 extern msgQ* arpQ;
 
@@ -37,13 +36,13 @@ int readRawPacket(int socket_fd, ethernet_header* ethernet_header, mip_header* m
 	rc = recvmsg(socket_fd, &msg, 0);
   memcpy(interface, &socket_addr.sll_ifindex, sizeof(int));
 
-  if(debug == 1)
+  if(debug)
   {
     printf("RECEIVED %d BYTES ON INTERFACE: %d\n", rc, socket_addr.sll_ifindex);
     char* src = getMacFormat(ethernet_header -> src_addr);
     printf("RECEIVED ETHERNETFRAME -- SRC ETHERNET: %s -- ", src);
     char* dst = getMacFormat(ethernet_header -> dst_addr);
-    printf("DST ETHERNET: %s\n", dst);
+    printf("DST ETHERNET: %s\n\n", dst);
   }
   return rc;
 }
@@ -98,7 +97,7 @@ int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header* mip_he
     return 1;
   }
 
-  if(debug == 1)
+  if(debug)
   {
     char* src = getMacFormat(ethernet_frame.src_addr);
     printf("SENDING ETHERNETFRAME -- SRC ETHERNET %s -- ", src);
@@ -132,7 +131,7 @@ void sendApplicationData(int socket_fd, mip_header* mip_header, char* buffer, u_
     return;
   }
 
-  arpEntry* entry = getCacheEntry(arpCache, mipDst);
+  arpEntry* entry = getCacheEntry(mipDst);
   if(entry == NULL)
   {
     struct arpWaitEntry* arpWaitEntry = malloc(sizeof(struct arpWaitEntry));

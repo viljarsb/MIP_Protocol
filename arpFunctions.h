@@ -22,10 +22,10 @@ struct arpWaitEntry
   char* buffer;
 };
 
-void addArpEntry(list* arpCache, u_int8_t mip, u_int8_t mac[ETH_ALEN], int interface);
-arpEntry* getCacheEntry(list* arpCache, uint8_t mip);
-void updateArpEntry(list* arpCache, uint8_t mip, u_int8_t mac[ETH_ALEN], int interface);
-void printArpCache(list* arpCache);
+void addArpEntry(u_int8_t mip, u_int8_t mac[ETH_ALEN], int interface);
+arpEntry* getCacheEntry(uint8_t mip);
+void updateArpEntry(uint8_t mip, u_int8_t mac[ETH_ALEN], int interface);
+void printArpCache();
 void sendArpResponse(int socket_fd, u_int8_t dst_mip);
 void sendArpBroadcast(int socket_fd, list* interfaces, u_int8_t lookup);
 

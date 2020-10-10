@@ -1,30 +1,39 @@
-#include <stdio.h>
-#include "unistd.h"
-#include <stdlib.h>
-#include <sys/epoll.h>
-#include <string.h>
-#include <stdbool.h>
-#include "epollFunctions.h"
-#include "socketFunctions.h"
-#include "linkedList.h"
-#include "protocol.h"
-#include <time.h>
-#include <sys/timerfd.h>
-#include "applicationFunctions.h"
-#include "routingTable.h"
-#include "routing_deamon.h"
-#include "log.h"
+#include <stdio.h> //printf
+#include <unistd.h> //read write REMOVE REMOVE REMOVE.
+#include <sys/epoll.h> //epoll
+#include <string.h> //memcpy etc.
+#include <stdbool.h> //boolean values.
+#include <time.h> //time.
+#include <sys/timerfd.h> //time_filedescriptor.
+#include <signal.h> //Signals.
 
+#include "epollFunctions.h" //Epoll utility functions.
+#include "socketFunctions.h" //Socket utility functions.
+#include "linkedList.h" //linkedList
+#include "protocol.h" //Some definitions and declarations.
+#include "applicationFunctions.h" //Send and read application msgs.
+#include "routingTable.h" //Routing utility.
+#include "routing_deamon.h" //Signatures of this source file.
+#include "log.h" //timestamp.
+
+//The routingtable, could be linkedList, but array allows fast lookup.
+//Does not take that much space either.
 routingEntry* routingTable[255];
+
+//Som msg-codes, to send and identify incoming msgs.
 u_int8_t REQUEST[3] = REQ;
 u_int8_t RESPONSE[3] = RSP;
 u_int8_t UPDATE[3] = UPD;
 u_int8_t HELLO[3] = HEL;
-u_int8_t MY_MIP_ADDRESS;
-int routingSocket;
-bool debug = false;
-list* timeList;
 
+u_int8_t MY_MIP_ADDRESS; //The mip-address of this node, recived from the mip-deamon.
+int routingSocket; //The socket used to talk to mip-deamon.
+bool debug = false; //A debug flag.
+list* timeList; //A linkedlist of neighbours with a value of the last time they sent a keep-alive.
+
+/*
+    This function is used to tell neighbours that this node is active.
+*/
 void sendHello()
 {
   if(debug)
@@ -33,13 +42,18 @@ void sendHello()
     printf("SENDING HELLO-MSG TO NEIGHBOURS OVER 255\n");
   }
 
-  char* buffer = calloc(1, sizeof(helloMsg));
   helloMsg msg;
   memcpy(&msg.type, HELLO, sizeof(HELLO));
+
+  char* buffer = calloc(1, sizeof(helloMsg));
   memcpy(buffer, &msg, sizeof(HELLO));
-  sendApplicationMsg(routingSocket, MY_MIP_ADDRESS, buffer, 1, sizeof(HELLO));
+  sendApplicationMsg(routingSocket, MY_MIP_ADDRESS, buffer, 1, sizeof(helloMsg));
+  free(buffer);
 }
 
+/*
+    This function sends the entire routing table to every neighbour.
+*/
 void sendUpdate()
 {
   if(debug)
@@ -48,16 +62,21 @@ void sendUpdate()
     printf("SENDING UPDATE-MSG TO NEIGHBOURS\n");
   }
 
-  char* buffer = calloc(1, 3);
+  //Fill in the type.
   updateStructure updateStructure;
   memcpy(updateStructure.type, UPDATE, sizeof(UPDATE));
-  memcpy(buffer, updateStructure.type, sizeof(UPDATE));
-
+  //Currently 0 data is in the struct.
   updateStructure.amount = 0;
   updateStructure.data = malloc(0);
 
+  char* buffer = calloc(1, sizeof(UPDATE));
+  memcpy(buffer, updateStructure.type, sizeof(UPDATE));
+
+  //For every i in 255, check if the routing table has a entry for that mip.
   for(int i = 0; i < 255; i++)
   {
+    //If there is a entry at this index (corresponding with mip)
+    //Reallocate more memory, and add it to the data pointer and increase the counter by 1.
     if(findEntry(i) != NULL)
     {
       updateStructure.amount = updateStructure.amount + 1;
@@ -66,12 +85,22 @@ void sendUpdate()
     }
   }
 
+  //Allocate more space in the buffer. 3 bytes for type, 1 for the amount and x * sizeof a routingEntry.
   buffer = realloc(buffer, sizeof(u_int8_t) * 4 + (sizeof(routingEntry) * updateStructure.amount));
+
+  //Copy into buffer, and send the data.
   memcpy(buffer + 3, &updateStructure.amount, sizeof(u_int8_t));
   memcpy(buffer + 4, updateStructure.data, sizeof(routingEntry) * updateStructure.amount);
   sendApplicationMsg(routingSocket, MY_MIP_ADDRESS, buffer, 1, 4 + (updateStructure.amount * sizeof(routingEntry)));
+  free(updateStructure.data);
+  free(buffer);
 }
 
+/*
+    This function is used to reply to the mip-deamon whenever it asks for a path.
+
+    @Param  The destination the mip-deamon wants to reach and the next_hop found.
+*/
 void sendResponse(int destination, u_int8_t next_hop)
 {
   if(debug)
@@ -81,7 +110,6 @@ void sendResponse(int destination, u_int8_t next_hop)
   }
 
   routingQuery query;
-
   memcpy(query.type, RESPONSE, sizeof(RESPONSE));
   query.mip = next_hop;
 
@@ -90,6 +118,12 @@ void sendResponse(int destination, u_int8_t next_hop)
   sendApplicationMsg(routingSocket, destination, buffer, -1, sizeof(routingQuery));
 }
 
+/*
+    This function is called whenever the timeout runs out.
+    The funtion first sends a keep-alive to all neighbours.
+    Then it calls a control functions too see if some neighbours
+    have failed to send their keep-alives.
+*/
 void alarm_()
 {
   if(debug)
@@ -101,11 +135,17 @@ void alarm_()
   controlTime();
 }
 
+/*
+    This function is called whenever there is data to be read from the socket.
+    The function checks what kind of data that has arrived, and determines
+    what to do next.
+*/
 void handleIncomingMsg()
 {
   applicationMsg* applicationMsg = calloc(1, sizeof(struct applicationMsg));
   int rc = readApplicationMsg(routingSocket, applicationMsg);
 
+  //If we got a request for a pathing from the mip-deamon.
   if(memcmp(REQUEST, applicationMsg -> payload, sizeof(REQUEST)) == 0)
   {
     routingQuery query;
@@ -119,6 +159,7 @@ void handleIncomingMsg()
     sendResponse(query.mip, next_hop);
   }
 
+  //If we got a HELLO msg from a neighbour.
   else if(memcmp(HELLO, applicationMsg -> payload, sizeof(HELLO)) == 0)
   {
     if(findEntry(applicationMsg -> address) == NULL)
@@ -129,6 +170,12 @@ void handleIncomingMsg()
         printf("RECIEVIED HELLO-BROADCAST FROM MIP: %u -- ADDING TO ROUTINGTABLE\n", applicationMsg -> address);
       }
       addToRoutingTable(applicationMsg -> address, 1, applicationMsg -> address);
+      sendUpdate();
+    }
+
+    else if(findEntry(applicationMsg -> address) != NULL && findEntry(applicationMsg -> address) -> cost == 255)
+    {
+      updateRoutingEntry(applicationMsg -> address, 1, applicationMsg -> address);
       sendUpdate();
     }
 
@@ -143,6 +190,7 @@ void handleIncomingMsg()
     }
   }
 
+  //If we got a UPDATE from a neighbour.
   else if(memcmp(UPDATE, applicationMsg -> payload, sizeof(UPDATE)) == 0)
   {
 
@@ -151,6 +199,7 @@ void handleIncomingMsg()
       timestamp();
       printf("RECIEVIED ROUTING-UPDATE -- UPDATING ROUTINGTABLE\n");
     }
+
     bool changed = false;
 
     updateStructure updateStructure;
@@ -174,7 +223,7 @@ void handleIncomingMsg()
 
       else if(findEntry(entry.mip_address) != NULL)
       {
-        if(entry.cost + 1 < findEntry(entry.mip_address) -> cost)
+        if(entry.cost != 255 && entry.cost + 1 < findEntry(entry.mip_address) -> cost)
         {
           updateRoutingEntry(entry.mip_address, entry.cost + 1, applicationMsg -> address);
           changed = true;
@@ -182,6 +231,17 @@ void handleIncomingMsg()
           {
             timestamp();
             printf("UPDATED NEXT-HOP OF %u\n\n", entry.mip_address);
+          }
+        }
+
+        else if(entry.cost == 255 && applicationMsg -> address == findEntry(entry.mip_address) -> next_hop)
+        {
+          updateRoutingEntry(entry.mip_address, 255, applicationMsg -> address);
+          changed = true;
+          if(debug)
+          {
+            timestamp();
+            printf("PATH TO %d SET TO INFINITE\n\n", entry.mip_address);
           }
         }
       }
@@ -194,15 +254,8 @@ void handleIncomingMsg()
       if(debug)
       {
         timestamp();
-        printf("UPDATED COMPLETE -- TABLE WAS ALTERED -- SENDING UPDATE TO NEIGHBOURS\n\n");
-        timestamp();
-        printf("CURRENT ROUTINGTABLE \n");
-        for(int i = 0; i < 255; i++)
-        {
-          routingEntry* entry = findEntry(i);
-          if(entry != NULL)
-            printf("             MIP: %u -- COST: %u -- NEXT_HOP: %u\n", entry -> mip_address, entry -> cost, entry -> next_hop);
-        }
+        printf("UPDATED COMPLETE -- TABLE WAS ALTERED -- SENDING UPDATE TO NEIGHBOURS\n");
+        printRoutingTable();
       }
       sendUpdate();
     }
@@ -215,9 +268,32 @@ void handleIncomingMsg()
         printf("UPDATED COMPLETE -- TABLE WAS NOT ALTERED\n\n");
       }
     }
+
+    free(updateStructure.data);
   }
 
   free(applicationMsg);
+}
+
+void handle_sigint(int sig)
+{
+  if(debug)
+  {
+    timestamp();
+    printf("ROUTING-DEAMON FORCE-QUIT\n");
+  }
+
+  for(int i = 0; i < 255; i++)
+  {
+    if(routingTable[i] != NULL)
+    {
+        free(routingTable[i]);
+    }
+  }
+
+  freeListMemory(timeList);
+
+  exit(EXIT_SUCCESS);
 }
 
 int main(int argc, char* argv[])
@@ -247,7 +323,7 @@ int main(int argc, char* argv[])
   if(debug)
   {
     timestamp();
-    printf(" ** ROUTING_DEAMON STARTED ** \n\n");
+    printf("ROUTING_DEAMON STARTED\n\n");
   }
 
   routingSocket = createDomainClientSocket(domainPath);
@@ -268,8 +344,8 @@ int main(int argc, char* argv[])
     int epoll_fd = epoll_create1(0);
     if (epoll_fd == -1)
     {
-       perror("epoll_create");
-       return -1;
+       printf("epoll_create\n");
+       exit(EXIT_FAILURE);
      }
 
      int timer_fd;
@@ -301,13 +377,14 @@ int main(int argc, char* argv[])
     {
       //block until the file descriptor/socket has data to be processed.
       amountOfEntries = epoll_wait(epoll_fd, events, 1, -1);
+      signal(SIGINT, handle_sigint);
       for(int i = 0; i < amountOfEntries; i++)
       {
         //Socket closed
         if(events[i].events & EPOLLHUP)
         {
           timestamp();
-          printf("\n\n ** MIP-DEAMON SHUTDOWN -- TERMINATING EXECUTION\n");
+          printf("MIP-DEAMON SHUTDOWN -- TERMINATING EXECUTION\n");
           exit(EXIT_SUCCESS);
         }
 

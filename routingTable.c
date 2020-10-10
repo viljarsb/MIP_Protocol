@@ -21,6 +21,18 @@ void removeFromRouting(u_int8_t mip)
   }
 }
 
+void printRoutingTable()
+{
+  timestamp();
+  printf("CURRENT ROUTINGTABLE\n");
+  for(int i = 0; i < 255; i++)
+  {
+    routingEntry* entry = findEntry(i);
+    if(entry != NULL)
+      printf("             MIP: %u -- COST: %u -- NEXT_HOP: %u\n", entry -> mip_address, entry -> cost, entry -> next_hop);
+  }
+}
+
 void removeFromList(u_int8_t mip)
 {
   if(timeList -> head == NULL)
@@ -60,14 +72,17 @@ void controlTime()
      time(&currentTime);
      if(difftime(currentTime, current -> time) > 10)
      {
-       removeFromRouting(current -> mip);
        if(debug)
        {
          timestamp();
-         printf("NO KEEP-ALIVE FROM %d RECIVED WITHIN TIMEFRAME\n\n", current -> mip);
-         printf("REMOVED ALL PATHS TROUGH %u FROM ROUTING TABLE\n", current -> mip);
+         printf("NO KEEP-ALIVE FROM %d RECIVED WITHIN TIMEFRAME\n", current -> mip);
+         timestamp();
+         printf("REMOVED ALL PATHS TROUGH %u FROM ROUTING TABLE\n\n", current -> mip);
        }
+
+       removeFromRouting(current -> mip);
        removeFromList(current -> mip);
+       changed = true;
      }
      tempNode = tempNode -> next;
  }
@@ -151,4 +166,12 @@ void updateRoutingEntry(u_int8_t mip, u_int8_t newCost, u_int8_t newNext)
   routingEntry* entry = findEntry(mip);
   entry -> cost = newCost;
   entry -> next_hop = newNext;
+
+  if(entry -> cost == 1)
+  {
+    struct timerEntry* timerEntry = malloc(sizeof(struct timerEntry));
+    timerEntry -> mip = entry -> mip_address;
+    time(&timerEntry -> time);
+    addEntry(timeList, timerEntry);
+  }
 }

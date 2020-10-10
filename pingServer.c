@@ -14,7 +14,8 @@ bool debug = true; //Implicitly true every time.
 int main(int argc, char* argv[])
 {
   //Variable to hold user specified path.
-  char* domainPath;
+  //Create a socket variable.
+  int ping_socket;
 
   //Very simple argument control.
   if(argc == 2 && strcmp(argv[1], "-h") == 0)
@@ -25,8 +26,7 @@ int main(int argc, char* argv[])
 
   else if(argc == 2)
   {
-    domainPath = malloc(strlen(argv[1]) + 1);
-    strcpy(domainPath, argv[1]);
+    ping_socket = createDomainClientSocket(argv[1]);
   }
 
   else if(argc != 2)
@@ -41,9 +41,6 @@ int main(int argc, char* argv[])
     printf("PING-SERVER RUNNING -- LISTENING FOR PINGS\n\n");
   }
 
-  //Create a socket and connect (done trough function in socketFunctions.h).
-  int ping_socket;
-  ping_socket = createDomainClientSocket(domainPath);
   //identify.
   u_int8_t identify = 0x02;
   write(ping_socket, &identify, sizeof(u_int8_t));
@@ -71,31 +68,45 @@ int main(int argc, char* argv[])
       if(events[i].events & EPOLLHUP)
       {
        timestamp();
-       printf("\n\nMIP-DEAMON SHUTDOWN -- TERMINATING EXECUTION\n");
+       printf("MIP-DEAMON SHUTDOWN -- TERMINATING EXECUTION\n");
        exit(EXIT_SUCCESS);
       }
 
        //Data to be read on socket.
-      if(events[i].events & EPOLLIN)
+      else if(events[i].events & EPOLLIN)
       {
         if(events[i].data.fd == ping_socket)
         {
          //Read and print the msg, and send back a pong response.
          applicationMsg* msg = calloc(1, sizeof(applicationMsg));
-         readApplicationMsg(ping_socket, msg);
-         timestamp();
-         printf("RECIEVIED PING FROM: %u\n", msg -> address);
+         bytes = readApplicationMsg(ping_socket, msg);
+
+         if(debug)
+         {
+           timestamp();
+           printf("RECIEVIED PING FROM: %u\n", msg -> address);
+         }
+
          timestamp();
          printf("MSG: %s\n\n", msg -> payload);
 
-         char* temp = calloc(bytes - 2, sizeof(char));
+         char* temp = calloc(bytes - 1, sizeof(char));
          strcat(temp, "PONG ");
          strcat(temp, &msg -> payload[5]);
+         if(debug)
+         {
+           timestamp();
+           printf("REPLYING TO %u\n", msg -> address);
+         }
          sendApplicationMsg(ping_socket, msg -> address, temp, 0, bytes - 2);
-         free(temp);
 
-          timestamp();
-          printf("LISTENING FOR NEW PINGS\n\n");
+         free(msg);
+         free(temp);
+         if(debug)
+         {
+           timestamp();
+           printf("LISTENING FOR NEW PINGS\n\n");
+         }
        }
       }
     }

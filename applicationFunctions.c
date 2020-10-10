@@ -4,7 +4,7 @@
 #include <stdbool.h> //Boolean values
 #include <stdio.h> //Printf
 #include "log.h" //Timestamp
-extern bool debug; //Extern bool value from the main program. 
+extern bool debug; //Extern bool value from the main program.
 
 /*
     This functions write to a unix domain-socket.

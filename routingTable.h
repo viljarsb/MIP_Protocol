@@ -16,5 +16,5 @@ int findNextHop(u_int8_t mip);
 void updateTime(u_int8_t mip);
 void addToRoutingTable(u_int8_t mip, u_int8_t cost, u_int8_t next);
 void updateRoutingEntry(u_int8_t mip, u_int8_t newCost, u_int8_t newNext);
-
+void printRoutingTable();
 #endif

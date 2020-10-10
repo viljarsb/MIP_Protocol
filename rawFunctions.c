@@ -43,14 +43,15 @@ int readRawPacket(int socket_fd, ethernet_header* ethernet_header, mip_header* m
   msg.msg_iov     = msgvec;
 
 	bytes = recvmsg(socket_fd, &msg, 0);
-  //Get the interface the s
+  //Copy the interface the packet was recived on into the pointer interface.
   memcpy(interface, &socket_addr.sll_ifindex, sizeof(int));
 
   if(debug)
   {
     timestamp();
-    printf("RECEIVED %d BYTES ON INTERFACE: %d\n", rc, socket_addr.sll_ifindex);
+    printf("RECEIVED %d BYTES ON INTERFACE: %d\n", bytes, socket_addr.sll_ifindex);
     char* src = getMacFormat(ethernet_header -> src_addr);
+    timestamp();
     printf("RECEIVED ETHERNETFRAME -- SRC ETHERNET: %s -- ", src);
     char* dst = getMacFormat(ethernet_header -> dst_addr);
     printf("DST ETHERNET: %s\n\n", dst);
@@ -58,6 +59,11 @@ int readRawPacket(int socket_fd, ethernet_header* ethernet_header, mip_header* m
   return bytes;
 }
 
+/*
+    This function writes to a raw socket from specified memory locations.
+    @Param  A raw socket, pointers to a sockaddr_ll, a mip_header, a buffer, the length of the buffer and the destination mac.
+    @Return  A int (amount of bytes sent).
+*/
 int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header* mip_header, char* buffer, int len, uint8_t dst_addr[])
 {
   int bytes;
@@ -119,8 +125,14 @@ int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header* mip_he
   return bytes;
 }
 
+/*
+    This function looks at the mip-header supplied to determine where to send the packet.
+    If its broadcast, just broadcast over every interface this node has.
+    If its not a broadcast, find the correct arp-entry, and get the next jump.
+*/
 void sendApplicationData(int socket_fd, mip_header* mip_header, char* buffer, u_int8_t mipDst)
 {
+  //Send over broadcast mac if destination mip is 255.
   if(mip_header -> dst_addr == 0xFF)
   {
     uint8_t dst_addr[ETH_ALEN] = BROADCAST_MAC_ADDR;
@@ -160,9 +172,12 @@ void sendApplicationData(int socket_fd, mip_header* mip_header, char* buffer, u_
     return;
   }
 
+  //find the interface to send on.
   interface* interfaceToUse = getInterface(interfaces, entry -> via_interface);
   struct sockaddr_ll temp;
   memcpy(&temp, &interfaceToUse -> sock_addr, sizeof(struct sockaddr_ll));
+
+  //send the pointers over to sendRawPacket, and free the mip_header and buffer.
   sendRawPacket(socket_fd, &temp, mip_header, buffer, mip_header -> sdu_length, entry -> mac_address);
   free(mip_header);
   free(buffer);

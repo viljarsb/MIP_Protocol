@@ -4,6 +4,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
+#include "log.h"
+extern bool debug;
 
 
 /*
@@ -14,6 +17,12 @@
 */
 void findInterfaces(list* interfaceList)
 {
+  if(debug)
+  {
+    timestamp();
+    printf("LOOKING FOR ACTIVE INTERFACES ON THIS NODE\n");
+  }
+
   struct ifaddrs *ifaces, *ifp;
   if (getifaddrs(&ifaces)) {
      printf("getifaddrs\n");
@@ -28,9 +37,17 @@ void findInterfaces(list* interfaceList)
         memcpy(&interface.sock_addr, (struct sockaddr_ll*) ifp->ifa_addr, sizeof(struct sockaddr_ll));
         interface.name = malloc(strlen(ifp -> ifa_name) + 1);
         memcpy(interface.name, ifp -> ifa_name, strlen(ifp -> ifa_name) + 1);
+        if(debug)
+        {
+          timestamp();
+          printf("ADDING INTERFACE No. %d -- NAME %s -- TO ACTIVE INTERFACES\n", interface.sock_addr.sll_ifindex, interface.name);
+        }
         addEntry(interfaceList, &interface);
       }
   }
+
+  printf("\n");
+
   /* Free the interface list */
   freeifaddrs(ifaces);
   return;

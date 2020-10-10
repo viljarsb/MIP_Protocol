@@ -1,8 +1,13 @@
 #include "linkedList.h"
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
+#include <stdlib.h> //free.
+#include <string.h> //memcpy.
 
+/*
+    This function create a linkedList.
+
+    @Param  the size of the entry elements.
+    @Return  A pointer to a linedList struct, this struct contains a pointer to the first node, and some info such as amount of entries.
+*/
 list* createLinkedList(int entrySize)
 {
   list* list = malloc(sizeof(struct linkedList));
@@ -12,6 +17,11 @@ list* createLinkedList(int entrySize)
   return list;
 }
 
+/*
+    This function adds some data into a specified linkedList.
+
+    @Param  The linkedList to add into, and a pointer to the entry.
+*/
 void addEntry(list* list, void* entry)
 {
   node* node = malloc(sizeof(struct node));
@@ -19,11 +29,13 @@ void addEntry(list* list, void* entry)
   memcpy(node -> data, entry, list -> entrySize);
   node -> next = NULL;
 
+  //If head empty, insert as first in the list.
   if(list -> head == NULL)
   {
     list -> head = node;
   }
 
+  //If not traverse the list until a empty spot is found.
   else
   {
     struct node* tempNode = list -> head;
@@ -38,6 +50,11 @@ void addEntry(list* list, void* entry)
   list -> entries = list -> entries + 1;
 }
 
+/*
+    This funtions frees the allocated space for nodes and the list.
+
+    @Param  The list to free.
+*/
 void freeListMemory(list* list)
 {
   node* tempNode = list -> head;

@@ -1,5 +1,6 @@
 #ifndef APPLICATIONFUNCTIONS
 #define APPLICATIONFUNCTIONS
+#define TTL_UNDEFINED 15;
 #include <stdlib.h>
 
 typedef struct applicationMsg applicationMsg;

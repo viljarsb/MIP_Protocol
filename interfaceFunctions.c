@@ -16,8 +16,8 @@ void findInterfaces(list* interfaceList)
 {
   struct ifaddrs *ifaces, *ifp;
   if (getifaddrs(&ifaces)) {
-     perror("getifaddrs");
-     exit(-1);
+     printf("getifaddrs\n");
+     exit(EXIT_FAILURE);
    }
 
   for (ifp = ifaces; ifp != NULL; ifp = ifp->ifa_next)
@@ -71,7 +71,7 @@ char* getMacFormat(u_int8_t mac[ETH_ALEN])
 
 /*
     This functions frees memory from interface structs in a list.
-    @Param  a linkedlist of interfaces. 
+    @Param  a linkedlist of interfaces.
 */
 void freeInterfaces(list* interfaceList)
 {

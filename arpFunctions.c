@@ -1,14 +1,15 @@
 #include "arpFunctions.h"
-#include "rawFunctions.h"
-#include "interfaceFunctions.h"
-#include <string.h>
-#include <stdio.h>
-#include <stdbool.h>
-#include "log.h"
-extern list* interfaces;
-extern bool debug;
-extern list* arpCache;
-extern u_int8_t MY_MIP_ADDRESS;
+#include "rawFunctions.h" //sendApplicationData
+#include "interfaceFunctions.h" //Interfaces.
+#include <string.h> //Memcpy.
+#include <stdio.h>  //printf.
+#include <stdbool.h>  //Boolean values.
+#include "log.h"  //timestamp.
+
+extern list* interfaces; //Extern linkedList of interfaces from the mip-deamon.
+extern list* arpCache; //Extern linkedList of arp-entries from the mip-deamon.
+extern bool debug; //Extern boolean flag from the mip-deamon.
+extern u_int8_t MY_MIP_ADDRESS; //Extern mip-address from the mip-deamon.
 
 
 /*
@@ -17,15 +18,18 @@ extern u_int8_t MY_MIP_ADDRESS;
 */
 void addArpEntry(u_int8_t mip, u_int8_t mac[ETH_ALEN], int interface)
 {
+  //Create a arpEntry struct and fill t he fields with the data specified as parameters.
   arpEntry entry;
   memcpy(&entry.mip_address, &mip, sizeof(mip));
   memcpy(entry.mac_address, mac, ETH_ALEN);
   memcpy(&entry.via_interface, &interface, sizeof(interface));
+
   if(debug)
   {
     timestamp();
     printf("ADDED %d TO ARP-CACHE -- MAC: %s -- INTERFACE %d\n", entry.mip_address, getMacFormat(entry.mac_address), entry.via_interface);
   }
+  //Add to the cache specified.
   addEntry(arpCache, &entry);
 }
 
@@ -34,23 +38,27 @@ void addArpEntry(u_int8_t mip, u_int8_t mac[ETH_ALEN], int interface)
     @Params   a linkedlist (the arp-cache) and the MIP that is to be looked up in the cache.
     @Return  a ArpCache entry if the MIP supplied has a corresponding arp entry, if not NULL.
 */
-arpEntry* getCacheEntry(uint8_t mip) {
-    if(arpCache -> head == NULL)
-    {
-      return NULL;
-    }
-
-    node* tempNode = arpCache -> head;
-    while(tempNode != NULL)
-    {
-        arpEntry* entry = (arpEntry*) tempNode -> data;
-        if (entry -> mip_address == mip)
-        {
-            return entry;
-        }
-      tempNode = tempNode -> next;
-    }
+arpEntry* getCacheEntry(uint8_t mip)
+{
+  //If cache is empty return NULL.
+  if(arpCache -> head == NULL)
+  {
     return NULL;
+  }
+
+  //Look for the correct entry in the list, return it if found.
+  node* tempNode = arpCache -> head;
+  while(tempNode != NULL)
+  {
+    arpEntry* entry = (arpEntry*) tempNode -> data;
+    if (entry -> mip_address == mip)
+    {
+      return entry;
+    }
+    tempNode = tempNode -> next;
+  }
+  //If not found, return NULL.
+  return NULL;
 }
 
 /*
@@ -59,9 +67,13 @@ arpEntry* getCacheEntry(uint8_t mip) {
 */
 void updateArpEntry(uint8_t mip, u_int8_t mac[ETH_ALEN], int interface)
 {
+  //Get the correct entry to update.
   arpEntry* entry = getCacheEntry(mip);
+
+  //Update the fields.
   memcpy(entry -> mac_address, mac, ETH_ALEN);
   entry -> via_interface = interface;
+
   if(debug)
   {
     timestamp();
@@ -88,14 +100,14 @@ void printArpCache()
   node* tempNode = arpCache -> head;
   while(tempNode != NULL)
   {
-      arpEntry* entry = (arpEntry*) tempNode -> data;
-      char* mac = getMacFormat(entry -> mac_address);
-      interface* interface = getInterface(interfaces, entry -> via_interface);
-      printf("CACHE ENTRY -- MIP: %d -- MAC: %s -- INTERFACE ID: %d -- INTERFACE-NAME: %s\n", entry -> mip_address, mac, entry -> via_interface, interface -> name);
+    arpEntry* entry = (arpEntry*) tempNode -> data;
+    char* mac = getMacFormat(entry -> mac_address);
+    interface* interface = getInterface(interfaces, entry -> via_interface);
+    printf("CACHE ENTRY -- MIP: %d -- MAC: %s -- INTERFACE ID: %d -- INTERFACE-NAME: %s\n", entry -> mip_address, mac, entry -> via_interface, interface -> name);
     tempNode = tempNode -> next;
   }
+
   printf("\n");
-  return;
 }
 
 /*
@@ -106,32 +118,33 @@ void printArpCache()
 */
 void sendArpResponse(int socket_fd, u_int8_t dst_mip)
 {
-  mip_header* mip_header = malloc(sizeof(struct mip_header));
-  arpMsg arpMsg;
-  memset(mip_header, 0, sizeof(struct mip_header));
-  memset(&arpMsg, 0, sizeof(struct arpMsg));
+  if(debug)
+  {
+    timestamp();
+    printf("SENDING ARP-RESPONSE -- SRC MIP: %d -- DST MIP: %d\n\n", MY_MIP_ADDRESS, dst_mip);
+  }
 
+  //Create a pointer to a mip-header and allocate space and a arpMsg struct.
+  mip_header* mip_header = calloc(1, sizeof(struct mip_header));
+  arpMsg arpMsg;
+
+  //Fill in the fields of the mip-header.
   mip_header -> dst_addr = dst_mip;
   mip_header -> src_addr = MY_MIP_ADDRESS;
   mip_header -> ttl = 1;
   mip_header -> sdu_length = sizeof(struct arpMsg);
   mip_header -> sdu_type = ARP;
 
-
+  //Fill in the arpMsg fields.
   arpMsg.type = ARP_RESPONSE;
   arpMsg.mip_address = MY_MIP_ADDRESS;
 
-  char* buffer = malloc(sizeof(struct arpMsg));
+  //Crate a char* buffer and allocate space equal to the size of a arpMsg, then fill in the buffer.
+  char* buffer = calloc(1, sizeof(struct arpMsg));
   memcpy(buffer, &arpMsg, sizeof(struct arpMsg));
 
-  if(debug)
-  {
-    timestamp();
-    printf("SENDING ARP-RESPONSE -- SRC MIP: %d -- DST MIP: %d\n\n", mip_header -> src_addr, mip_header -> dst_addr);
-  }
-
-    sendApplicationData(socket_fd, mip_header, buffer, mip_header -> dst_addr);
-
+  //Send the data over to the function sendApplicationData(rawFunctions.c).
+  sendApplicationData(socket_fd, mip_header, buffer, mip_header -> dst_addr);
 }
 
 /*
@@ -148,24 +161,26 @@ void sendArpBroadcast(int socket_fd, list* interfaces, u_int8_t lookup)
     printf("SENDING ARP-BROADCAST -- SRC MIP: %d -- DST MIP: %d -- LOOKUP: %d\n\n", MY_MIP_ADDRESS, 0xFF, lookup);
   }
 
+  //Create a pointer to a mip-header and allocate space and a arpMsg struct.
   mip_header* mip_header = calloc(1, sizeof(struct mip_header));
   arpMsg arpMsg;
-  memset(mip_header, 0, sizeof(struct mip_header));
-  memset(&arpMsg, 0, sizeof(struct arpMsg));
-
   uint8_t dst_addr[ETH_ALEN] = BROADCAST_MAC_ADDR;
 
+  //Fill in the mip-header.
   mip_header -> dst_addr = 0xFF;
   mip_header -> src_addr = MY_MIP_ADDRESS;
   mip_header -> ttl = 1;
   mip_header -> sdu_length = sizeof(struct arpMsg);
   mip_header -> sdu_type = ARP;
 
+  //Fill in the arpMsg.
   arpMsg.type = ARP_BROADCAST;
   arpMsg.mip_address = lookup;
 
+  //Create a buffer, and copy content of arpMsg into this.
   char* buffer = calloc(1, sizeof(struct arpMsg));
-  memset(buffer, 0, sizeof(struct arpMsg));
   memcpy(buffer, &arpMsg, sizeof(struct arpMsg));
+
+  //Send the data over to the function sendApplicationData(rawFunctions.c).
   sendApplicationData(socket_fd, mip_header, buffer, 0xFF);
 }

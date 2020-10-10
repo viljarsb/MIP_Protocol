@@ -1,20 +1,24 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include "socketFunctions.h"
-#include "applicationFunctions.h"
-#include <time.h>
-#include <stdbool.h>
-#include <unistd.h>
-#include "log.h"
-bool debug = true;
+#include <stdio.h> //printf
+#include <string.h> //strlen, memcpy.
+#include <time.h> //timeout.
+#include <stdbool.h> //boolean values.
+#include <unistd.h> //write and and read REMOVE REMOVE REMOVE REMOVE REMOVE REMOVE
+
+#include "socketFunctions.h"  //create and connect socket.
+#include "applicationFunctions.h" //sendApplicationMsg.
+#include "log.h"  //timestamp.
+#include "protocol.h"
+bool debug = true; //Implicitly true every time.
 
 int main(int argc, char* argv[])
 {
+  //Some variables to holder user arguments.
   u_int8_t dst_addr;
   char* msg;
   u_int8_t ttl;
   char* domainPath;
+
+  //Some simple argument control.
 
   if(argc == 2 && strcmp(argv[1], "-h") == 0)
   {
@@ -43,24 +47,29 @@ int main(int argc, char* argv[])
     exit(EXIT_SUCCESS);
   }
 
+  //Some variables for the socket, amount of bytes, the fd-set and the clock.
   int ping_socket;
   int rc;
   fd_set set;
   clock_t stopwatch;
 
+  //Create and connect to the mip-deamon on path specified, done trough a function in (socketFunctions.c).
   ping_socket = createDomainClientSocket(domainPath);
-  u_int8_t identify = 0x02;
+
+  //identify this program.
+  u_int8_t identify = PING;
   write(ping_socket, &identify, sizeof(u_int8_t));
 
+  //Send the msg from the client to the mip-deamon and start a timer.
   sendApplicationMsg(ping_socket, dst_addr, msg, ttl, strlen(msg));
   stopwatch = clock();
 
   FD_ZERO(&set);
   FD_SET(ping_socket, &set);
   struct timeval tv = {1, 0};
-
   rc = select(FD_SETSIZE, &set, NULL, NULL, &tv);
 
+  //If response is recived before 1 sec has ran.
   if(rc && FD_ISSET(ping_socket, &set))
   {
     applicationMsg* msg = calloc(1, sizeof(applicationMsg));
@@ -70,6 +79,7 @@ int main(int argc, char* argv[])
     printf("Recieved response in %f seconds\n", (double)(clock() - stopwatch)/1000);
   }
 
+  //Timer ran out. 
   else
   {
     timestamp();

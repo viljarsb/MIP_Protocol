@@ -1,26 +1,35 @@
+#include <sys/socket.h>
+#include <string.h>
+#include <stdio.h>
+#include <arpa/inet.h>
+
 #include "rawFunctions.h"
 #include "interfaceFunctions.h"
 #include "arpFunctions.h"
 #include "msgQ.h"
-#include <sys/socket.h>
-#include <string.h>
-#include <stdio.h>
 #include "log.h"
-#include <arpa/inet.h>
 
-extern int debug;
-extern list* interfaces;
-extern msgQ* waitingQ;
+extern int debug; //Extern debugflag from mip-deamon.
+extern list* interfaces; //Extern linkedList of interfaces from the mip-deamon.
+extern msgQ* waitingQ;  //Extern q of waiting Msgs from the mip-deamon.
 extern msgQ* arpQ;
 
+/*
+    This function read from a raw socket into specified memory locations.
+    @Param  A raw socket, pointers to a ethernet_header, a mip_header, a buffer and a int (interface).
+    @Return  A int (amount of bytes read).
+*/
 int readRawPacket(int socket_fd, ethernet_header* ethernet_header, mip_header* mip_header, char* payload, int* interface)
 {
-  int rc;
+  //Variables and structues needed to read from socket.
+  int bytes;
   struct sockaddr_ll socket_addr;
 	struct msghdr msg;
   memset(&msg, 0, sizeof(struct msghdr));
+  //3 scattered buffers.
 	struct iovec msgvec[3];
 
+  //Read in a ethernet_header, a mip_header and a data buffer.
   msgvec[0].iov_base = ethernet_header;
   msgvec[0].iov_len  = sizeof(struct ethernet_header);
   msgvec[1].iov_base = mip_header;
@@ -28,13 +37,13 @@ int readRawPacket(int socket_fd, ethernet_header* ethernet_header, mip_header* m
   msgvec[2].iov_base = payload;
   msgvec[2].iov_len = 1024;
 
-
   msg.msg_name    = &socket_addr;
   msg.msg_namelen = sizeof(struct sockaddr_ll);
   msg.msg_iovlen  = 3;
   msg.msg_iov     = msgvec;
 
-	rc = recvmsg(socket_fd, &msg, 0);
+	bytes = recvmsg(socket_fd, &msg, 0);
+  //Get the interface the s
   memcpy(interface, &socket_addr.sll_ifindex, sizeof(int));
 
   if(debug)
@@ -46,7 +55,7 @@ int readRawPacket(int socket_fd, ethernet_header* ethernet_header, mip_header* m
     char* dst = getMacFormat(ethernet_header -> dst_addr);
     printf("DST ETHERNET: %s\n\n", dst);
   }
-  return rc;
+  return bytes;
 }
 
 int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header* mip_header, char* buffer, int len, uint8_t dst_addr[])
@@ -56,15 +65,13 @@ int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header* mip_he
 	struct msghdr *msg;
 	struct iovec msgvec[3];
 
-  /* Fill in Ethernet header */
+  //Fill in the ethernet header.
   memcpy(ethernet_frame.dst_addr, dst_addr, 6);
   memcpy(ethernet_frame.src_addr, socketname -> sll_addr, 6);
-  /* Match the ethertype in packet_socket.c: */
   ethernet_frame.protocol = htons(ETH_P_MIP);
 
   msgvec[0].iov_base = &ethernet_frame;
   msgvec[0].iov_len  = sizeof(struct ethernet_header);
-
   msgvec[1].iov_base = mip_header;
   msgvec[1].iov_len = sizeof(struct mip_header);
 
@@ -79,13 +86,11 @@ int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header* mip_he
   bufferPadded = calloc(counter,  sizeof(char));
   memcpy(&bufferPadded[0], buffer, len);
 
-
   msgvec[2].iov_base = bufferPadded;
   msgvec[2].iov_len = counter;
 
-  /* Allocate a zeroed-out message info struct */
   msg = (struct msghdr *)calloc(1, sizeof(struct msghdr));
-  /* Fill out message metadata struc10t */
+  //Fill in metadata.
   memcpy(socketname->sll_addr, &dst_addr, 6);
   msg->msg_name    = socketname;
   msg->msg_namelen = sizeof(struct sockaddr_ll);
@@ -94,9 +99,9 @@ int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header* mip_he
 
   /* Construct and send message */
   bytes = sendmsg(socket, msg, 0);
-  if (bytes == -1) {
-    perror("sendmsg");
-    return 1;
+  if(bytes == -1) {
+    printf("sendmsg\n");
+    return -1;
   }
 
   if(debug)
@@ -109,7 +114,6 @@ int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header* mip_he
     timestamp();
     printf("SENDT %d BYTES OF DATA OVER INTERFACE %d\n\n", bytes, socketname -> sll_ifindex);
   }
-
   free(bufferPadded);
   free(msg);
   return bytes;

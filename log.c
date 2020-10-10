@@ -1,6 +1,7 @@
 #include <time.h>
 #include <stdio.h>
 #include "log.h"
+//This function only prints out a timestamp for debug purposes. 
 void timestamp()
 {
   time_t t = time(NULL);

@@ -6,8 +6,8 @@
 #include <stdbool.h>
 #include "socketFunctions.h"
 #include "epollFunctions.h"
+#include "log.h"
 #include "applicationFunctions.h"
-
 bool debug = true;
 
 //Runs a ping server.
@@ -33,6 +33,12 @@ int main(int argc, char* argv[])
     exit(1);
   }
 
+  if(debug)
+  {
+    timestamp();
+    printf(" ** PING-SERVER RUNNING -- LISTENING FOR PINGS **\n\n");
+  }
+
   int unix_socket;
   unix_socket = createDomainClientSocket(domainPath);
   u_int8_t identify = 0x02;
@@ -50,9 +56,6 @@ int main(int argc, char* argv[])
   addEpollEntry(unix_socket, epoll_fd);
   int bytes;
 
-  if(debug)
-    printf("\n\n ** PING-SERVER RUNNING -- LISTENING FOR PINGS **\n\n");
-
   //Loop forever.
   while(1)
   {
@@ -63,6 +66,7 @@ int main(int argc, char* argv[])
        //Socket closed
        if(events[i].events & EPOLLHUP)
        {
+         timestamp();
          printf("\n\n ** MIP-DEAMON SHUTDOWN -- TERMINATING EXECUTION\n");
          exit(EXIT_SUCCESS);
        }
@@ -70,21 +74,23 @@ int main(int argc, char* argv[])
        //Data to be read on socket.
        if(events[i].events & EPOLLIN)
        {
-
         if(events[i].data.fd == unix_socket)
          {
            //Read and print the msg, and send back a pong response.
            applicationMsg* msg = calloc(1, sizeof(applicationMsg));
            bytes = readApplicationMsg(unix_socket, msg);
+           timestamp();
            printf("RECIEVIED PING FROM: %u\n", msg -> address);
-           printf("MSG: %s\n", msg -> payload);
+           timestamp();
+           printf("MSG: %s\n\n", msg -> payload);
            char* temp = calloc(bytes - 2 + 1, sizeof(char));
            strcat(temp, "PONG ");
            strcat(temp, &msg -> payload[5]);
            sendApplicationMsg(unix_socket, msg -> address, temp, 0, bytes - 2);
            free(temp);
 
-           printf("\nLISTENING FOR NEW PINGS\n\n");
+           timestamp();
+           printf("LISTENING FOR NEW PINGS\n\n");
          }
        }
      }

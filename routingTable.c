@@ -6,6 +6,7 @@
 #include "routing.h"
 #include "linkedList.h"
 #include "routing_deamon.h"
+#include "log.h"
 
 extern routingEntry* routingTable[255];
 extern bool debug;
@@ -16,7 +17,7 @@ void removeFromRouting(u_int8_t mip)
   for(int i = 0; i < 255; i++)
   {
     if(routingTable[i] != NULL && routingTable[i] -> next_hop == mip)
-      routingTable[i] = NULL;
+      updateRoutingEntry(routingTable[i] -> mip_address, 255, routingTable[i] -> next_hop);
   }
 }
 
@@ -60,8 +61,12 @@ void controlTime()
      if(difftime(currentTime, current -> time) > 10)
      {
        removeFromRouting(current -> mip);
-       printf("REMOVED ALL PATHS TROUGH %u FROM ROUTING TABLE\n", current -> mip);
-       printf("NO KEEP-ALIVE WAS RECIVED WITHIN TIMEFRAME\n\n");
+       if(debug)
+       {
+         timestamp();
+         printf("NO KEEP-ALIVE FROM %d RECIVED WITHIN TIMEFRAME\n\n", current -> mip);
+         printf("REMOVED ALL PATHS TROUGH %u FROM ROUTING TABLE\n", current -> mip);
+       }
        removeFromList(current -> mip);
      }
      tempNode = tempNode -> next;
@@ -80,7 +85,7 @@ routingEntry* findEntry(u_int8_t mip)
 int findNextHop(u_int8_t mip)
 {
   routingEntry* entry = findEntry(mip);
-  if(entry == NULL)
+  if(entry == NULL || entry -> cost == 255)
     return 255;
 
   return entry -> next_hop;
@@ -109,7 +114,10 @@ void addToRoutingTable(u_int8_t mip, u_int8_t cost, u_int8_t next)
   if(findEntry(mip) == NULL)
   {
     if(debug)
+    {
+      timestamp();
       printf("ADDED %u TO ROUTING-TABLE -- COST: %u -- NEXT HOP: %u\n\n", mip, cost, next);
+    }
 
     routingEntry* entry = malloc(sizeof(routingEntry));
     entry -> mip_address = mip;
@@ -136,7 +144,10 @@ void addToRoutingTable(u_int8_t mip, u_int8_t cost, u_int8_t next)
 void updateRoutingEntry(u_int8_t mip, u_int8_t newCost, u_int8_t newNext)
 {
   if(debug)
+  {
+    timestamp();
     printf("UPDATING COST OF MIP: %u TO %u WITH NEXT_HOP: %u\n\n", mip, newCost, newNext);
+  }
   routingEntry* entry = findEntry(mip);
   entry -> cost = newCost;
   entry -> next_hop = newNext;

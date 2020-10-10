@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <string.h>
 #include <stdio.h>
+#include "log.h"
 #include <arpa/inet.h>
 
 extern int debug;
@@ -38,6 +39,7 @@ int readRawPacket(int socket_fd, ethernet_header* ethernet_header, mip_header* m
 
   if(debug)
   {
+    timestamp();
     printf("RECEIVED %d BYTES ON INTERFACE: %d\n", rc, socket_addr.sll_ifindex);
     char* src = getMacFormat(ethernet_header -> src_addr);
     printf("RECEIVED ETHERNETFRAME -- SRC ETHERNET: %s -- ", src);
@@ -99,10 +101,12 @@ int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header* mip_he
 
   if(debug)
   {
+    timestamp();
     char* src = getMacFormat(ethernet_frame.src_addr);
     printf("SENDING ETHERNETFRAME -- SRC ETHERNET %s -- ", src);
     char* dst = getMacFormat(ethernet_frame.dst_addr);
     printf("DST ETHERNET: %s\n", dst);
+    timestamp();
     printf("SENDT %d BYTES OF DATA OVER INTERFACE %d\n\n", bytes, socketname -> sll_ifindex);
   }
 

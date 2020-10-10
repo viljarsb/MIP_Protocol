@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include "log.h"
 extern list* interfaces;
 extern bool debug;
 extern list* arpCache;
@@ -20,6 +21,11 @@ void addArpEntry(u_int8_t mip, u_int8_t mac[ETH_ALEN], int interface)
   memcpy(&entry.mip_address, &mip, sizeof(mip));
   memcpy(entry.mac_address, mac, ETH_ALEN);
   memcpy(&entry.via_interface, &interface, sizeof(interface));
+  if(debug)
+  {
+    timestamp();
+    printf("ADDED %d TO ARP-CACHE -- MAC: %s -- INTERFACE %d\n", entry.mip_address, getMacFormat(entry.mac_address), entry.via_interface);
+  }
   addEntry(arpCache, &entry);
 }
 
@@ -56,6 +62,11 @@ void updateArpEntry(uint8_t mip, u_int8_t mac[ETH_ALEN], int interface)
   arpEntry* entry = getCacheEntry(mip);
   memcpy(entry -> mac_address, mac, ETH_ALEN);
   entry -> via_interface = interface;
+  if(debug)
+  {
+    timestamp();
+    printf("UPDATED %d IN ARP-CACHE -- MAC: %s -- INTERFACE %d\n", entry -> mip_address, getMacFormat(entry -> mac_address), entry -> via_interface);
+  }
 }
 
 /*
@@ -66,9 +77,12 @@ void printArpCache()
 {
   if(arpCache -> head == NULL)
   {
+    timestamp();
     printf("ARP-CACHE IS CURRENLY EMPTY\n\n");
     return;
   }
+
+  timestamp();
   printf("PRINTING CURRENT ARP-CACHE ENTRIES\n");
 
   node* tempNode = arpCache -> head;
@@ -111,7 +125,10 @@ void sendArpResponse(int socket_fd, u_int8_t dst_mip)
   memcpy(buffer, &arpMsg, sizeof(struct arpMsg));
 
   if(debug)
+  {
+    timestamp();
     printf("SENDING ARP-RESPONSE -- SRC MIP: %d -- DST MIP: %d\n\n", mip_header -> src_addr, mip_header -> dst_addr);
+  }
 
     sendApplicationData(socket_fd, mip_header, buffer, mip_header -> dst_addr);
 
@@ -126,7 +143,10 @@ void sendArpResponse(int socket_fd, u_int8_t dst_mip)
 void sendArpBroadcast(int socket_fd, list* interfaces, u_int8_t lookup)
 {
   if(debug)
+  {
+    timestamp();
     printf("SENDING ARP-BROADCAST -- SRC MIP: %d -- DST MIP: %d -- LOOKUP: %d\n\n", MY_MIP_ADDRESS, 0xFF, lookup);
+  }
 
   mip_header* mip_header = calloc(1, sizeof(struct mip_header));
   arpMsg arpMsg;

@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <arpa/inet.h>
+#include "log.h"
 #include "protocol.h"
 extern bool debug;
 
@@ -38,7 +39,10 @@ int createDomainServerSocket(char* domain_path)
     }
 
     if(debug)
+    {
+      timestamp();
       printf("CREATED DOMAIN-SERVER-SOCKET -- LISTENING FOR INCOMING CONNECTIONS ON PATH: %s\n\n", domain_path);
+    }
 
     return unix_socket;
 }
@@ -59,7 +63,10 @@ int createDomainClientSocket(char* domain_path)
   }
 
   if(debug)
+  {
+    timestamp();
     printf("CREATED DOMAIN-CLIENT-SOCKET -- CONNECTED TO SERVER-SOCKET ON PATH: %s\n\n", domain_path);
+  }
 
   return socket_client;
 }
@@ -75,7 +82,10 @@ int createRawSocket()
     }
 
     if(debug)
+    {
+      timestamp();
       printf("CREATED RAW-SOCKET\n\n");
+    }
 
     return sock_fd;
 }

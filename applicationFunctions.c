@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include "log.h"
 extern bool debug;
 #define TTL_UNDEFINED 15;
 
@@ -22,7 +23,10 @@ int sendApplicationMsg(int domainSocket, u_int8_t destination, char* payload, u_
   int bytes = write(domainSocket, &msg, 2 + len);
 
   if(debug)
+  {
+    timestamp();
     printf("SENDT %u BYTES OVER DOMAIN-SOCKET %d\n\n", bytes, domainSocket);
+  }
 
   return bytes;
 }
@@ -37,7 +41,10 @@ int readApplicationMsg(int domainSocket, applicationMsg* appMsg)
   int bytes = read(domainSocket, appMsg, sizeof(struct applicationMsg));
 
   if(debug)
-    printf("RECIVED %u BYTES OVER DOMAIN-SOCKET %d\n\n", bytes, domainSocket);
+  {
+    timestamp();
+    printf("RECIVED %u BYTES OVER DOMAIN-SOCKET %d\n", bytes, domainSocket);
+  }
 
   return bytes;
 }

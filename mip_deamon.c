@@ -15,6 +15,7 @@
 #include "msgQ.h"
 #include "epollFunctions.h"
 #include "routing.h"
+#include "log.h"
 
 //Some Routing-SDU codes.
 extern const u_int8_t REQUEST[3];
@@ -70,12 +71,14 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
            if(getCacheEntry(mip_header -> src_addr) == NULL)
              addArpEntry(mip_header -> src_addr, ethernet_header -> src_addr, *recivedOnInterface);
 
+
            else
              updateArpEntry(mip_header -> src_addr, ethernet_header -> src_addr, *recivedOnInterface);
 
            if(debug)
            {
-             printf("RECEIVED ARP-REQUEST -- MIP SRC: %d -- MIP DST: %d\n\n", mip_header -> src_addr, mip_header -> dst_addr);
+             timestamp();
+             printf("RECEIVED ARP-REQUEST -- MIP SRC: %d -- MIP DST: %d\n", mip_header -> src_addr, mip_header -> dst_addr);
              printArpCache();
            }
 
@@ -91,7 +94,8 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
 
         if(debug)
         {
-          printf("RECEIVED ARP-RESPONSE -- SRC MIP: %d -- DST MIP: %d\n\n", mip_header -> src_addr, mip_header -> dst_addr);
+          timestamp();
+          printf("RECEIVED ARP-RESPONSE -- SRC MIP: %d -- DST MIP: %d", mip_header -> src_addr, mip_header -> dst_addr);
           printArpCache();
         }
 
@@ -116,7 +120,10 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
         memcpy(msg.payload, buffer, mip_header -> sdu_length);
 
         if(debug)
-          printf("RECEIVED PING -- MIP SRC: %d -- MIP DST: %d\n\n", mip_header -> src_addr, mip_header -> dst_addr);
+        {
+          timestamp();
+          printf("RECEIVED PING -- MIP SRC: %d -- MIP DST: %d", mip_header -> src_addr, mip_header -> dst_addr);
+        }
 
         //If we have a pingApplication running, send the MSG to that application.
         if(pingApplication != -1)
@@ -125,7 +132,10 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
         //if not print a error.
         else
           if(debug)
-            printf("CAN NOT SEND DATA TO PING APPLICATION -- NO SUCH APPLICATION IS CURRENTLY RUNNING\n\n");
+          {
+            timestamp();
+            printf("CAN NOT SEND DATA TO PING APPLICATION -- NO SUCH APPLICATION IS CURRENTLY RUNNING");
+          }
       }
 
       //The ping is addressed to some other node and is routed trough this node.
@@ -136,13 +146,19 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
         if(mip_header -> ttl <= 0)
         {
           if(debug)
-            printf("RECEIVED PING FOR ANOHTER HOST -- TTL HAS REACHED 0 -- DISCARDING PACKET WITH DESTINATION: %u\n\n", mip_header -> dst_addr);
+          {
+            timestamp();
+            printf("RECEIVED PING FOR ANOHTER HOST -- TTL HAS REACHED 0 -- DISCARDING PACKET WITH DESTINATION: %u", mip_header -> dst_addr);
+          }
         }
 
         else
         {
           if(debug)
-            printf("RECEIVED PING FOR ANOHTER HOST -- TRYING TO FORWARDING TO %u FOR %u\n\n", mip_header -> dst_addr, mip_header -> src_addr);
+          {
+            timestamp();
+            printf("RECEIVED PING FOR ANOHTER HOST -- TRYING TO FORWARDING TO %u FOR %u", mip_header -> dst_addr, mip_header -> src_addr);
+          }
 
           //Save the msg and q it.
           unsent* unsent = malloc(sizeof(struct unsent));
@@ -162,8 +178,11 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
     else if(mip_header -> sdu_type == ROUTING)
     {
       if(debug)
-        printf("RECIEVIED ROUTING-SDU -- MIP SRC: %u -- MIP DEST: %u\n\n", mip_header -> src_addr, mip_header -> dst_addr);
+      {
+        timestamp();
+        printf("RECIEVIED ROUTING-SDU -- MIP SRC: %u -- MIP DEST: %u", mip_header -> src_addr, mip_header -> dst_addr);
 
+      }
       //Construct a applicationMsg and copy content of SDU into this.
       applicationMsg msg;
       memset(&msg, 0, sizeof(struct applicationMsg));
@@ -176,7 +195,10 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
 
       else
         if(debug)
-          printf("CAN NOT SEND DATA TO ROUTINGDEAMON -- NO ROUTINGDEAMON RUNNING\n\n");
+        {
+          timestamp();
+          printf("CAN NOT SEND DATA TO ROUTINGDEAMON -- NO ROUTINGDEAMON RUNNING");
+        }
     }
 
     //free allocated memory.
@@ -203,7 +225,10 @@ void handleApplicationPacket(int activeApplication, int routingApplication, int 
   if(applicationMsg -> address == MY_MIP_ADDRESS)
   {
     if(debug)
-      printf("A APPLICATION ON THIS HOST ADDRESS A PACKET TO IT SELF -- SENDING THE MSG IN RETURN\n\n");
+    {
+      timestamp();
+      printf("A APPLICATION ON THIS HOST ADDRESS A PACKET TO IT SELF -- SENDING THE MSG IN RETURN");
+    }
 
     //Send the msg in return
     sendApplicationMsg(activeApplication, applicationMsg -> address, applicationMsg -> payload, -1, rc - 2);
@@ -236,7 +261,7 @@ void handleApplicationPacket(int activeApplication, int routingApplication, int 
 
     else
     {
-      printf("CAN NOT SEND MIP-SDU TO REMOTE HOST -- NO ROUTINGDEAMON RUNNING\n\n");
+      printf("CAN NOT SEND MIP-SDU TO REMOTE HOST -- NO ROUTINGDEAMON RUNNING");
     }
   }
 
@@ -266,7 +291,10 @@ void handleRoutingPacket(int socket_fd, int routingApplication)
     if(query.mip == 255)
     {
       if(debug)
+      {
+        timestamp();
         printf("NO ROUTE FOUND FOR DESTINATION: %u -- DISCARDRING PACKET\n\n", applicationMsg -> address);
+      }
 
       //pop the q, and free the memory.
       unsent* unsent = pop(waitingQ);
@@ -284,7 +312,9 @@ void handleRoutingPacket(int socket_fd, int routingApplication)
 
       if(debug)
       {
+          timestamp();
           printf("ROUTE FOUND FOR DESTINATION: %u -- ROUTING VIA: %u\n", unsent -> mip_header -> dst_addr, query.mip);
+          timestamp();
           printf("SENDING PING-SDU -- MIP SRC: %u -- MIP DST: %u\n", unsent -> mip_header -> src_addr, unsent -> mip_header -> dst_addr);
         }
 
@@ -311,7 +341,10 @@ void handleRoutingPacket(int socket_fd, int routingApplication)
 void handle_sigint(int sig)
 {
     if(debug)
+    {
+      timestamp();
       printf("MIP_DEAMON FORCE-QUIT\n");
+    }
     freeInterfaces(interfaces);
     freeListMemory(arpCache);
     free(arpQ);
@@ -350,14 +383,20 @@ int main(int argc, char* argv[])
       exit(EXIT_SUCCESS);
     }
 
+    if(debug)
+    {
+      timestamp();
+      printf("MIP-DEAMON HAS STARTED RUNNING ON HOST %d\n\n", MY_MIP_ADDRESS);
+    }
+
     interfaces = createLinkedList(sizeof(interface));
     findInterfaces(interfaces);
     arpCache = createLinkedList(sizeof(arpEntry));
     waitingQ = createQ();
     arpQ = createQ();
-    int socket_fd, socket_application, socket_routing;
+    int socket_fd, domain_socket;
 
-    socket_application = createDomainServerSocket(domainPath);
+    domain_socket = createDomainServerSocket(domainPath);
     socket_fd = createRawSocket();
 
     int epoll_fd = epoll_create1(0);
@@ -369,7 +408,7 @@ int main(int argc, char* argv[])
 
     struct epoll_event events[10];
     int amountOfEntries;
-    addEpollEntry(socket_application, epoll_fd);
+    addEpollEntry(domain_socket, epoll_fd);
     addEpollEntry(socket_fd, epoll_fd);
 
     int pingApplication = -1;
@@ -382,16 +421,20 @@ int main(int argc, char* argv[])
       signal(SIGINT, handle_sigint);
       for (int i = 0; i < amountOfEntries; i++)
       {
-         if(events[i].data.fd == socket_application)
+         if(events[i].data.fd == domain_socket)
          {
-           tempApplication = accept(socket_application, NULL, NULL);
+           tempApplication = accept(domain_socket, NULL, NULL);
            u_int8_t sdu_type = 0x00;
            read(tempApplication, &sdu_type, sizeof(u_int8_t));
 
            if(sdu_type == PING)
            {
              if(debug)
-              printf("A PING APPLICATION CONNECTED\n\n");
+             {
+               timestamp();
+               printf("A PING APPLICATION CONNECTED\n");
+             }
+
              pingApplication = tempApplication;
              tempApplication = -1;
              addEpollEntry(pingApplication, epoll_fd);
@@ -400,7 +443,11 @@ int main(int argc, char* argv[])
            if(sdu_type == ROUTING)
            {
              if(debug)
-              printf("A ROUTING_DEAMON APPLICATION CONNECTED\n\n");
+             {
+               timestamp();
+               printf("A ROUTING_DEAMON APPLICATION CONNECTED\n");
+             }
+
              routingApplication = tempApplication;
              tempApplication = -1;
              addEpollEntry(routingApplication, epoll_fd);
@@ -414,7 +461,11 @@ int main(int argc, char* argv[])
            if(events[i].data.fd == routingApplication)
            {
              if(debug)
-              printf("\n\nA ROUTING APPLICATION DISCONNECTED\n");
+             {
+               timestamp();
+               printf("A ROUTING APPLICATION DISCONNECTED\n");
+             }
+
              removeEpollEntry(routingApplication, epoll_fd);
              close(routingApplication);
              routingApplication = -1;
@@ -426,9 +477,11 @@ int main(int argc, char* argv[])
              close(pingApplication);
              pingApplication = -1;
              if(debug)
-              printf("\n\nA PING APPLICATION DISCONNECTED\n");
+             {
+               timestamp();
+               printf("A PING APPLICATION DISCONNECTED\n");
+             }
            }
-
          }
 
          //data

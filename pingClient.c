@@ -6,7 +6,8 @@
 #include <time.h>
 #include <stdbool.h>
 #include <unistd.h>
-bool debug = false;
+#include "log.h"
+bool debug = true;
 
 int main(int argc, char* argv[])
 {
@@ -18,7 +19,7 @@ int main(int argc, char* argv[])
   if(argc == 2 && strcmp(argv[1], "-h") == 0)
   {
     printf("Run program with <Destination host> <msg> <ttl> <domain path>\n");
-    exit(1);
+    exit(EXIT_SUCCESS);
   }
 
   else if(argc == 5)
@@ -39,7 +40,7 @@ int main(int argc, char* argv[])
   else if(argc != 5)
   {
     printf("Program can not run.\nAttempt to run with -h for instructions.\n");
-    exit(1);
+    exit(EXIT_SUCCESS);
   }
 
   int ping_socket;
@@ -64,14 +65,15 @@ int main(int argc, char* argv[])
   {
     applicationMsg* msg = calloc(1, sizeof(applicationMsg));
     readApplicationMsg(ping_socket, msg);
-
+    timestamp();
     printf("MSG: %s\n", msg -> payload);
     printf("Recieved response in %f seconds\n", (double)(clock() - stopwatch)/1000);
   }
 
   else
   {
-      printf("Client did not recieve any PONG respone.\nTiming out.");
+    timestamp();
+    printf("Client did not recieve any PONG respone.\nTiming out.");
   }
 
   free(msg);

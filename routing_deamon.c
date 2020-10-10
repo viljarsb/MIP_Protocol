@@ -13,6 +13,7 @@
 #include "applicationFunctions.h"
 #include "routingTable.h"
 #include "routing_deamon.h"
+#include "log.h"
 
 routingEntry* routingTable[255];
 u_int8_t REQUEST[3] = REQ;
@@ -21,13 +22,18 @@ u_int8_t UPDATE[3] = UPD;
 u_int8_t HELLO[3] = HEL;
 u_int8_t MY_MIP_ADDRESS;
 int routingSocket;
-bool debug = true;
+bool debug = false;
 list* timeList;
 
 void sendHello()
 {
-  printf("SENDING HELLO-MSG TO NEIGHBOURS OVER 255\n");
-  char* buffer = calloc(1, 3);
+  if(debug)
+  {
+    timestamp();
+    printf("SENDING HELLO-MSG TO NEIGHBOURS OVER 255\n");
+  }
+
+  char* buffer = calloc(1, sizeof(helloMsg));
   helloMsg msg;
   memcpy(&msg.type, HELLO, sizeof(HELLO));
   memcpy(buffer, &msg, sizeof(HELLO));
@@ -37,7 +43,10 @@ void sendHello()
 void sendUpdate()
 {
   if(debug)
-    printf("SENDING UPDATE-MSG TO NEIGHBOURS\n\n");
+  {
+    timestamp();
+    printf("SENDING UPDATE-MSG TO NEIGHBOURS\n");
+  }
 
   char* buffer = calloc(1, 3);
   updateStructure updateStructure;
@@ -66,7 +75,10 @@ void sendUpdate()
 void sendResponse(int destination, u_int8_t next_hop)
 {
   if(debug)
+  {
+    timestamp();
     printf("SENDING ROUTING-RESPONSE FOR MIP: %u -- NEXT HOP: %u\n", destination, next_hop);
+  }
 
   routingQuery query;
 
@@ -81,7 +93,10 @@ void sendResponse(int destination, u_int8_t next_hop)
 void alarm_()
 {
   if(debug)
-    printf("SENDING KEEP-ALIVE -- INFORMING NEIGHBOURS OF MY PRESENCE\n\n");
+  {
+    timestamp();
+    printf("SENDING KEEP-ALIVE -- INFORMING NEIGHBOURS OF MY PRESENCE\n");
+  }
   sendHello();
   controlTime();
 }
@@ -96,7 +111,10 @@ void handleIncomingMsg()
     routingQuery query;
     memcpy(&query, applicationMsg -> payload, sizeof(routingQuery));
     if(debug)
+    {
+      timestamp();
       printf("RECIEVIED ROUTING-REQUEST FOR DESTINATION %u\n\n", query.mip);
+    }
     u_int8_t next_hop = findNextHop(query.mip);
     sendResponse(query.mip, next_hop);
   }
@@ -106,7 +124,10 @@ void handleIncomingMsg()
     if(findEntry(applicationMsg -> address) == NULL)
     {
       if(debug)
+      {
+        timestamp();
         printf("RECIEVIED HELLO-BROADCAST FROM MIP: %u -- ADDING TO ROUTINGTABLE\n", applicationMsg -> address);
+      }
       addToRoutingTable(applicationMsg -> address, 1, applicationMsg -> address);
       sendUpdate();
     }
@@ -114,7 +135,10 @@ void handleIncomingMsg()
     else
     {
       if(debug)
+      {
+        timestamp();
         printf("RECIVED KEEP-ALIVE BROADCAST FROM: %u\n\n", applicationMsg -> address);
+      }
       updateTime(applicationMsg -> address);
     }
   }
@@ -123,7 +147,10 @@ void handleIncomingMsg()
   {
 
     if(debug)
-     printf("RECIEVIED ROUTING-UPDATE -- UPDATING ROUTINGTABLE\n");
+    {
+      timestamp();
+      printf("RECIEVIED ROUTING-UPDATE -- UPDATING ROUTINGTABLE\n");
+    }
     bool changed = false;
 
     updateStructure updateStructure;
@@ -152,7 +179,10 @@ void handleIncomingMsg()
           updateRoutingEntry(entry.mip_address, entry.cost + 1, applicationMsg -> address);
           changed = true;
           if(debug)
+          {
+            timestamp();
             printf("UPDATED NEXT-HOP OF %u\n\n", entry.mip_address);
+          }
         }
       }
 
@@ -162,7 +192,18 @@ void handleIncomingMsg()
     if(changed)
     {
       if(debug)
+      {
+        timestamp();
         printf("UPDATED COMPLETE -- TABLE WAS ALTERED -- SENDING UPDATE TO NEIGHBOURS\n\n");
+        timestamp();
+        printf("CURRENT ROUTINGTABLE \n");
+        for(int i = 0; i < 255; i++)
+        {
+          routingEntry* entry = findEntry(i);
+          if(entry != NULL)
+            printf("             MIP: %u -- COST: %u -- NEXT_HOP: %u\n", entry -> mip_address, entry -> cost, entry -> next_hop);
+        }
+      }
       sendUpdate();
     }
 
@@ -170,14 +211,8 @@ void handleIncomingMsg()
     {
       if(debug)
       {
+        timestamp();
         printf("UPDATED COMPLETE -- TABLE WAS NOT ALTERED\n\n");
-        printf("CURRENT ROUTINGTABLE \n");
-        for(int i = 0; i < 255; i++)
-        {
-          routingEntry* entry = findEntry(i);
-          if(entry != NULL)
-            printf("MIP: %u -- COST: %u -- NEXT_HOP: %u\n", entry -> mip_address, entry -> cost, entry -> next_hop);
-        }
       }
     }
   }
@@ -189,13 +224,31 @@ int main(int argc, char* argv[])
 {
   char* domainPath;
   timeList = createLinkedList(sizeof(struct timerEntry));
-  if(argc == 2)
+
+  if(argc == 2 && strcmp(argv[1], "-h") == 0)
   {
-    domainPath = argv[1];
+    printf("Run program with -d (optinal debugmode) <domain path>\n");
+    exit(EXIT_SUCCESS);
   }
 
+  else if(argc == 3 && strcmp(argv[1], "-d") == 0)
+  {
+    debug = true;
+    domainPath = argv[2];
+  }
+
+  else
+  {
+    printf("Run program with -h for instructions\n");
+    exit(EXIT_SUCCESS);
+  }
+
+
   if(debug)
+  {
+    timestamp();
     printf(" ** ROUTING_DEAMON STARTED ** \n\n");
+  }
 
   routingSocket = createDomainClientSocket(domainPath);
   u_int8_t temp = ROUTING;
@@ -205,7 +258,11 @@ int main(int argc, char* argv[])
   addToRoutingTable(MY_MIP_ADDRESS, 0, MY_MIP_ADDRESS);
 
   if(debug)
-   printf("SENDING INITIAL HELLO-BROADCAST\n\n");
+  {
+    timestamp();
+    printf("SENDING INITIAL HELLO-BROADCAST\n");
+  }
+
   sendHello();
 
     int epoll_fd = epoll_create1(0);
@@ -234,7 +291,6 @@ int main(int argc, char* argv[])
        exit(EXIT_FAILURE);
      }
 
-
     struct epoll_event events[1];
     int amountOfEntries;
     addEpollEntry(routingSocket, epoll_fd);
@@ -247,8 +303,16 @@ int main(int argc, char* argv[])
       amountOfEntries = epoll_wait(epoll_fd, events, 1, -1);
       for(int i = 0; i < amountOfEntries; i++)
       {
-         if(events[i].events & EPOLLIN)
-         {
+        //Socket closed
+        if(events[i].events & EPOLLHUP)
+        {
+          timestamp();
+          printf("\n\n ** MIP-DEAMON SHUTDOWN -- TERMINATING EXECUTION\n");
+          exit(EXIT_SUCCESS);
+        }
+
+        else if(events[i].events & EPOLLIN)
+        {
             if(events[i].data.fd == routingSocket)
            {
              handleIncomingMsg();

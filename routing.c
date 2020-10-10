@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include "log.h"
 
 extern bool debug;
 extern u_int8_t MY_MIP_ADDRESS;
@@ -26,7 +27,11 @@ void SendForwardingRequest(int routingSocket, u_int8_t mip)
 void sendRoutingBroadcast(int socket_fd, char* payload, int len)
 {
   if(debug)
+  {
+    timestamp();
     printf("SENDING ROUTING-SDU -- MIP SRC: %u -- MIP DEST: %u\n", MY_MIP_ADDRESS, 0xFF);
+  }
+
   mip_header* mip_header = calloc(1, sizeof(struct mip_header));
   char* buffer = calloc(1, len);
   memcpy(buffer, payload, len);

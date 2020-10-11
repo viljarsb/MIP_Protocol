@@ -1,5 +1,5 @@
 #include "arpFunctions.h"
-#include "rawFunctions.h" //sendApplicationData
+#include "rawFunctions.h" //sendData
 #include "interfaceFunctions.h" //Interfaces.
 #include <string.h> //Memcpy.
 #include <stdio.h>  //printf.
@@ -143,8 +143,8 @@ void sendArpResponse(int socket_fd, u_int8_t dst_mip)
   char* buffer = calloc(1, sizeof(struct arpMsg));
   memcpy(buffer, &arpMsg, sizeof(struct arpMsg));
 
-  //Send the data over to the function sendApplicationData(rawFunctions.c).
-  sendApplicationData(socket_fd, mip_header, buffer, mip_header -> dst_addr);
+  //Send the data over to the function sendData(rawFunctions.c).
+  sendData(socket_fd, mip_header, buffer, mip_header -> dst_addr);
 }
 
 /*
@@ -181,6 +181,6 @@ void sendArpBroadcast(int socket_fd, list* interfaces, u_int8_t lookup)
   char* buffer = calloc(1, sizeof(struct arpMsg));
   memcpy(buffer, &arpMsg, sizeof(struct arpMsg));
 
-  //Send the data over to the function sendApplicationData(rawFunctions.c).
-  sendApplicationData(socket_fd, mip_header, buffer, 0xFF);
+  //Send the data over to the function sendData(rawFunctions.c).
+  sendData(socket_fd, mip_header, buffer, 0xFF);
 }

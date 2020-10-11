@@ -29,12 +29,12 @@ int createDomainServerSocket(char* domain_path)
     unlink(domain_path);
 
     if (bind(unix_socket, (const struct sockaddr*) &unix_addr, sizeof(struct sockaddr_un)) == -1) {
-        perror("bind");
+        printf("bind\n");
         exit(EXIT_FAILURE);
     }
 
     if (listen(unix_socket, MAX_APPLICATIONS) == -1) {
-        perror("listen");
+        perror("listen\n");
         exit(EXIT_FAILURE);
     }
 
@@ -58,8 +58,9 @@ int createDomainClientSocket(char* domain_path)
   strncpy(addr_unix.sun_path, domain_path, sizeof(addr_unix.sun_path) - 1);
 
   if (connect(socket_client, (const struct sockaddr*) &addr_unix, sizeof(struct sockaddr_un)) == -1) {
-      perror("connect");
-      return -1;
+      timestamp();
+      printf("connect");
+      exit(EXIT_FAILURE);
   }
 
   if(debug)
@@ -77,7 +78,8 @@ int createRawSocket()
 
     sock_fd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_MIP));
     if (sock_fd == -1) {
-        perror("socket");
+        timestamp();
+        printf("raw-socket\n");
         return -1;
     }
 

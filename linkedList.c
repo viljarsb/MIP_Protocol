@@ -61,10 +61,10 @@ void freeListMemory(list* list)
 
   while(tempNode != NULL)
   {
-    node* nextNode = tempNode -> next;
-    free(tempNode -> data);
-    free(tempNode);
-    tempNode = nextNode;
+    node* nextNode = tempNode;
+    tempNode = tempNode -> next;
+    free(nextNode -> data);
+    free(nextNode);
   }
 
   free(list);

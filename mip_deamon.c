@@ -4,6 +4,7 @@
 #include <string.h> //Tyoes, macros and functions to manipulate char-arrays.
 #include <sys/epoll.h> //File monitoring.
 #include <signal.h> //Handle signals.
+#include <sys/socket.h>
 
 #include "mip_deamon.h" //Signatures for functions of this source file.
 #include "protocol.h" //Definitions of constants and datastructures (formats) of the MIP-Protocol.
@@ -12,16 +13,14 @@
 #include "interfaceFunctions.h" //Signatures of functions and definitions used interfaces.
 #include "rawFunctions.h" //Signatures of functions used to send data over a raw-socket.
 #include "socketFunctions.h" //Signatures for functions used to create different sockets.
-#include "msgQ.h"
-#include "epollFunctions.h"
-#include "routing.h"
-#include "log.h"
+#include "msgQ.h" //Q for msgs waiting for routing-deamon to respond.
+#include "epollFunctions.h" //Utility functions for EPOLL.
+#include "routing.h" //Definitions and data structures.
+#include "log.h" //timestamp().
 
 //Some Routing-SDU codes.
 extern const u_int8_t REQUEST[3];
 extern const u_int8_t RESPONSE[3];
-extern const u_int8_t UPDATE[3];
-extern const u_int8_t HELLO[3];
 
 u_int8_t MY_MIP_ADDRESS; //This node's mip.
 bool debug = false; //Debug flag
@@ -102,11 +101,11 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
         if(arpQ -> amountOfEntries > 0)
         {
           struct arpWaitEntry* arpWaitEntry = pop(arpQ);
-          sendApplicationData(socket_fd, arpWaitEntry -> mip_header, arpWaitEntry -> buffer, arpWaitEntry -> dst);
+          sendData(socket_fd, arpWaitEntry -> mip_header, arpWaitEntry -> buffer, arpWaitEntry -> dst);
           free(arpWaitEntry);
         }
      }
-  }
+    }
 
     //A PING-SDU arrived
     else if(mip_header -> sdu_type == PING)
@@ -318,20 +317,22 @@ void handleRoutingPacket(int socket_fd, int routingApplication)
           printf("SENDING PING-SDU -- MIP SRC: %u -- MIP DST: %u\n", unsent -> mip_header -> src_addr, unsent -> mip_header -> dst_addr);
         }
 
-      //Pass the contents of the mip_header and the application msg over to the sendApplicationData function along with the next_hop.
-      sendApplicationData(socket_fd, unsent -> mip_header, unsent -> buffer, query.mip);
+      //Pass the contents of the mip_header and the application msg over to the sendData function along with the next_hop.
+      sendData(socket_fd, unsent -> mip_header, unsent -> buffer, query.mip);
       free(unsent);
     }
   }
 
-  //The msg recived from the routing-deamon is a HELLO or UPDATE msg to be broadcasted.
-  else if(memcmp(HELLO, applicationMsg -> payload, sizeof(HELLO)) == 0 || memcmp(UPDATE, applicationMsg -> payload, sizeof(UPDATE)) == 0)
+  //The msg is not a RESPONSE. Mip-deamon dont care what it is, just broadcast it as a ROUTING-SDU.
+  else
   {
+    u_int8_t dst_mip;
+    memcpy(&dst_mip, applicationMsg -> payload + 3, sizeof(u_int8_t)); //If not a response, adr for packet is at offset 3.
     //Create a char pointer and allocate space for the SDU payload (recived bytes - TTL and Address of the applicationMsg)
     char* buffer = malloc(rc - (sizeof(u_int8_t) * 2));
     memcpy(buffer, applicationMsg -> payload, rc - (sizeof(u_int8_t) * 2)); //payload = amount of bytes read - offset of two (fields in the applicaitonMsg)
     //Send the broadcast over the raw-socket.
-    sendRoutingBroadcast(socket_fd, buffer, rc - (sizeof(u_int8_t) * 2)); //payload = amount of bytes read - offset of two (fields in the applicaitonMsg)
+    sendRoutingSdu(socket_fd, buffer, rc - (sizeof(u_int8_t) * 2), dst_mip); //payload = amount of bytes read - offset of two (fields in the applicaitonMsg)
   }
 
   //free the msg.
@@ -424,10 +425,10 @@ int main(int argc, char* argv[])
          if(events[i].data.fd == domain_socket)
          {
            tempApplication = accept(domain_socket, NULL, NULL);
-           u_int8_t sdu_type = 0x00;
-           read(tempApplication, &sdu_type, sizeof(u_int8_t));
+           handshakeMsg handshakeMsg;
+           read(tempApplication, &handshakeMsg, sizeof(handshakeMsg));
 
-           if(sdu_type == PING)
+           if(handshakeMsg.value == PING)
            {
              if(debug)
              {
@@ -440,7 +441,7 @@ int main(int argc, char* argv[])
              addEpollEntry(pingApplication, epoll_fd);
            }
 
-           if(sdu_type == ROUTING)
+           if(handshakeMsg.value == ROUTING)
            {
              if(debug)
              {

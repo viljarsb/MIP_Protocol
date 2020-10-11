@@ -12,15 +12,38 @@ extern routingEntry* routingTable[255];
 extern bool debug;
 extern list* timeList;
 
+/*
+    This function sets the cost of all paths with next_hop equal to specified
+    mip to infinity (255). This means that these paths does not work anymore.
+
+    @Param  The mip that is to be removed.
+*/
 void removeFromRouting(u_int8_t mip)
 {
   for(int i = 0; i < 255; i++)
   {
     if(routingTable[i] != NULL && routingTable[i] -> next_hop == mip)
-      updateRoutingEntry(routingTable[i] -> mip_address, 255, routingTable[i] -> next_hop);
+    {
+      if(debug)
+      {
+        timestamp();
+        printf("COST OF %u SET TO INFINITE, NO WAY TO REACH THIS NODE\n", routingTable[i] -> mip_address);
+      }
+      routingTable[i] -> cost = 255;
+    }
+  }
+
+  if(debug)
+  {
+    timestamp();
+    printf("ROUTING TABLE AFTER REMOVAL OF ALL PATHS TROUGH %u\n", mip);
+    printRoutingTable();
   }
 }
 
+/*
+    This function just prints out all the current routing entries.
+*/
 void printRoutingTable()
 {
   timestamp();
@@ -33,31 +56,48 @@ void printRoutingTable()
   }
 }
 
+
+/*
+    This function removes a node from a list (list of neighbours),
+    so that it will no longer be monitored.
+
+    @Param  The mip that is to be removed.
+*/
 void removeFromList(u_int8_t mip)
 {
   if(timeList -> head == NULL)
     return;
 
   node* tempNode = timeList -> head;
-  node* last = malloc(sizeof(struct timerEntry));
+  node* last;
+  last = tempNode;
+
   while(tempNode != NULL)
   {
      struct timerEntry* current = (struct timerEntry*) tempNode -> data;
-     if(tempNode == timeList -> head)
+     if(timeList -> entries == 1 && current -> mip == mip)
      {
        timeList -> head = NULL;
+       timeList -> entries = 0;
+     }
+
+     else if(current -> mip == mip)
+     {
+       last -> next = tempNode -> next;
+       free(tempNode);
+       timeList -> entries = timeList -> entries -1;
        return;
      }
 
-     if(current -> mip == mip)
-     {
-       last -> next = tempNode -> next;
-     }
      last = tempNode;
      tempNode = tempNode -> next;
  }
 }
 
+/*
+    This function controls the times of last recived keep-alives from neighbours.
+    If time is too large, remove them from the neighbour list and from the routingtable.
+*/
 void controlTime()
 {
   bool changed = false;
@@ -88,15 +128,27 @@ void controlTime()
  }
 
  if(changed)
-  sendUpdate();
+  sendUpdate(0xFF);
 
 }
 
+/*
+    This function simply return the value of a certain index in the routingtable.
+    The indexes corresponds with mip-addresses.
+
+    @Param  The mip to lookup in the routingtable.
+*/
 routingEntry* findEntry(u_int8_t mip)
 {
   return routingTable[mip];
 }
 
+/*
+    This function finds the next_hop of path to destination.
+
+    @Param  The destination mip.
+    @Return  255 if no route found. next_hop if route found.
+*/
 int findNextHop(u_int8_t mip)
 {
   routingEntry* entry = findEntry(mip);
@@ -106,6 +158,11 @@ int findNextHop(u_int8_t mip)
   return entry -> next_hop;
 }
 
+/*
+    This function updates the time of last recived keep-alive for a neighbour.
+
+    @Param  The neighbour to reset the time for.
+*/
 void updateTime(u_int8_t mip)
 {
   if(timeList -> head == NULL)
@@ -124,6 +181,12 @@ void updateTime(u_int8_t mip)
  }
 }
 
+/*
+    This function add a node to the routingtable. It will also add a
+    node to the neighbour list if the cost of travel to that node is 1.
+
+    @Param  the mip, the cost of travel and the next_hop.
+*/
 void addToRoutingTable(u_int8_t mip, u_int8_t cost, u_int8_t next)
 {
   if(findEntry(mip) == NULL)
@@ -147,15 +210,18 @@ void addToRoutingTable(u_int8_t mip, u_int8_t cost, u_int8_t next)
       timerEntry -> mip = entry -> mip_address;
       time(&timerEntry -> time);
       addEntry(timeList, timerEntry);
+      free(timerEntry);
     }
-  }
-
-  else
-  {
-    updateRoutingEntry(mip, cost, next);
   }
 }
 
+/*
+    This function updates the estimate of a node if there is already
+    a entry for this node in the routingtable. It will also add a
+    node to the neighbour list if the cost of travel to that node is 1.
+
+    @Param  the mip, the cost of travel and the next_hop.
+*/
 void updateRoutingEntry(u_int8_t mip, u_int8_t newCost, u_int8_t newNext)
 {
   if(debug)

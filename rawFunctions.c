@@ -130,7 +130,7 @@ int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header* mip_he
     If its broadcast, just broadcast over every interface this node has.
     If its not a broadcast, find the correct arp-entry, and get the next jump.
 */
-void sendApplicationData(int socket_fd, mip_header* mip_header, char* buffer, u_int8_t mipDst)
+void sendData(int socket_fd, mip_header* mip_header, char* buffer, u_int8_t mipDst)
 {
   //Send over broadcast mac if destination mip is 255.
   if(mip_header -> dst_addr == 0xFF)

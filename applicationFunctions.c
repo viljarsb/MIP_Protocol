@@ -5,7 +5,7 @@
 #include <stdio.h> //Printf
 #include "log.h" //Timestamp
 extern bool debug; //Extern bool value from the main program.
-
+u_int8_t HANDSHAKE[3] = HSK;
 /*
     This functions write to a unix domain-socket.
     @Param  a domainsocket-fd, a MIP-address, the application payload as a char*, a time to live and the length of the payload.
@@ -27,7 +27,7 @@ int sendApplicationMsg(int domainSocket, u_int8_t destination, char* payload, u_
   if(debug)
   {
     timestamp();
-    printf("SENDT %u BYTES OVER DOMAIN-SOCKET %d\n\n", bytes, domainSocket);
+    printf("SENT %u BYTES OVER DOMAIN-SOCKET %d\n\n", bytes, domainSocket);
   }
 
   return bytes;
@@ -50,4 +50,20 @@ int readApplicationMsg(int domainSocket, applicationMsg* appMsg)
   }
 
   return bytes;
+}
+
+void sendHandshake(int domainSocket, u_int8_t value)
+{
+  handshakeMsg msg;
+  memcpy(msg.type, HANDSHAKE, sizeof(HANDSHAKE));
+  msg.value = value;
+  char* buffer = calloc(1, sizeof(handshakeMsg));
+  memcpy(buffer, &msg, sizeof(handshakeMsg));
+  int bytes = sendApplicationMsg(domainSocket, 0, buffer, -1, sizeof(handshakeMsg));
+/*  if(debug)
+  {
+    timestamp();
+    printf("SENT %u BYTES OVER DOMAIN-SOCKET %d\n", bytes, domainSocket);
+  }
+*/
 }

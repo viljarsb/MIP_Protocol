@@ -27,6 +27,8 @@ u_int8_t UPDATE[3] = UPD;
 u_int8_t HELLO[3] = HEL;
 u_int8_t ALIVE[3] = ALV;
 
+extern u_int8_t HANDSHAKE[3];
+
 u_int8_t MY_MIP_ADDRESS; //The mip-address of this node, recived from the mip-deamon.
 int routingSocket; //The socket used to talk to mip-deamon.
 bool debug = false; //A debug flag.
@@ -190,6 +192,20 @@ void handleIncomingMsg()
     }
     u_int8_t next_hop = findNextHop(query.mip);
     sendResponse(query.mip, next_hop);
+  }
+
+  if(memcmp(HANDSHAKE, applicationMsg -> payload, sizeof(HANDSHAKE)) == 0)
+  {
+    if(debug)
+    {
+      timestamp();
+      printf("RECIEVIED HANDSHAKE RESPONSE FROM MIP-DEAMON\n\n");
+    }
+
+    handshakeMsg msg;
+    memcpy(&msg, applicationMsg -> payload, sizeof(handshakeMsg));
+    MY_MIP_ADDRESS = msg.value;
+    addToRoutingTable(MY_MIP_ADDRESS, 0, MY_MIP_ADDRESS);
   }
 
   //If we got a HELLO msg from a neighbour.
@@ -369,11 +385,7 @@ int main(int argc, char* argv[])
   }
 
   routingSocket = createDomainClientSocket(domainPath);
-  u_int8_t temp = ROUTING;
-  write(routingSocket, &temp, sizeof(u_int8_t));
-  read(routingSocket, &MY_MIP_ADDRESS, sizeof(u_int8_t));
-
-  addToRoutingTable(MY_MIP_ADDRESS, 0, MY_MIP_ADDRESS);
+  sendHandshake(routingSocket, ROUTING);
 
   if(debug)
   {

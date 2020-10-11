@@ -57,8 +57,7 @@ int main(int argc, char* argv[])
   ping_socket = createDomainClientSocket(domainPath);
 
   //identify this program.
-  u_int8_t identify = PING;
-  write(ping_socket, &identify, sizeof(u_int8_t));
+  sendHandshake(ping_socket, PING);
 
   //Send the msg from the client to the mip-deamon and start a timer.
   sendApplicationMsg(ping_socket, dst_addr, msg, ttl, strlen(msg));
@@ -79,7 +78,7 @@ int main(int argc, char* argv[])
     printf("Recieved response in %f seconds\n", (double)(clock() - stopwatch)/1000);
   }
 
-  //Timer ran out. 
+  //Timer ran out.
   else
   {
     timestamp();

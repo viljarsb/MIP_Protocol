@@ -426,7 +426,9 @@ int main(int argc, char* argv[])
          {
            tempApplication = accept(domain_socket, NULL, NULL);
            handshakeMsg handshakeMsg;
-           read(tempApplication, &handshakeMsg, sizeof(handshakeMsg));
+           applicationMsg* appMsg = calloc(1, sizeof(applicationMsg));
+           readApplicationMsg(tempApplication, appMsg);
+           memcpy(&handshakeMsg, appMsg -> payload, sizeof(handshakeMsg));
 
            if(handshakeMsg.value == PING)
            {
@@ -452,7 +454,7 @@ int main(int argc, char* argv[])
              routingApplication = tempApplication;
              tempApplication = -1;
              addEpollEntry(routingApplication, epoll_fd);
-             write(routingApplication, &MY_MIP_ADDRESS, sizeof(u_int8_t));
+             sendHandshake(routingApplication, MY_MIP_ADDRESS);
            }
          }
 

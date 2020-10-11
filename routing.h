@@ -8,7 +8,6 @@
 #define UPD {0x55, 0x50, 0x44} //UPDATE
 #define HEL {0x48, 0x45, 0x4c} //HELLO
 #define ALV {0x41, 0x4c, 0x56} //KEEP-ALIVE
-#define HSK {0x48, 0x53, 0x4b} //HANDSHAKE
 
 
 typedef struct helloMsg helloMsg;
@@ -16,7 +15,6 @@ typedef struct keepAlive keepAlive;
 typedef struct routingEntry routingEntry;
 typedef struct updateStructure updateStructure;
 typedef struct routingQuery routingQuery;
-typedef handshakeMsg handshakeMsg;
 
 struct routingQuery
 {
@@ -51,13 +49,7 @@ struct routingEntry
   u_int8_t next_hop;
 };
 
-struct handshakeMsg
-{
-  u_int8_t type[3];
-  u_int8_t value;
-};
 
 void SendForwardingRequest(int routingSocket, u_int8_t mip);
 void sendRoutingSdu(int socket_fd, char* payload, int len, u_int8_t dst_mip);
-void sendHandshake(u_int8_t value);
 #endif

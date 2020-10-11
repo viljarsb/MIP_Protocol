@@ -12,7 +12,6 @@ const u_int8_t REQUEST[3] = REQ;
 const u_int8_t RESPONSE[3] = RSP;
 const u_int8_t UPDATE[3] = UPD;
 const u_int8_t HELLO[3] = HEL;
-const u_int8_t HANDSHAKE[3] = HSK;
 
 /*
     This functions send a request to the routing-deamon to ask for the next_hop.
@@ -55,15 +54,4 @@ void sendRoutingSdu(int socket_fd, char* payload, int len, u_int8_t dst_mip)
   mip_header -> sdu_length = len;
 
   sendData(socket_fd, mip_header, buffer, 0xFF);
-}
-
-void sendHandshake(u_int8_t value)
-{
-  handshakeMsg msg;
-  memcpy(msg.type, HANDSHAKE, sizeof(HANDSHAKE));
-  msg.value = value;
-
-  char* buffer = calloc(1, sizeof(handshakeMsg));
-  memcpy(buffer, &msg, sizeof(handshakeMsg));
-  sendApplicationMsg(routingSocket, destination, buffer, -1, sizeof(handshakeMsg));
 }

@@ -7,6 +7,7 @@
 #include "socketFunctions.h" //create and connect to socket.
 #include "epollFunctions.h" //Epoll utility functions.
 #include "applicationFunctions.h" //sendApplicationMsg
+#include "protocol.h"
 #include "log.h"  //timestamp.
 bool debug = true; //Implicitly true every time.
 
@@ -41,9 +42,7 @@ int main(int argc, char* argv[])
     printf("PING-SERVER RUNNING -- LISTENING FOR PINGS\n\n");
   }
 
-  //identify.
-  u_int8_t identify = 0x02;
-  write(ping_socket, &identify, sizeof(u_int8_t));
+  sendHandshake(ping_socket, PING);
 
   int epoll_fd = epoll_create1(0);
   if (epoll_fd == -1)

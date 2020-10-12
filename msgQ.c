@@ -2,6 +2,7 @@
 
 /*
     This function create a empty Q.
+
     @Return  a pointer to a msgQ, used to access the Q.
 */
 msgQ* createQ()
@@ -11,6 +12,8 @@ msgQ* createQ()
   q -> head = NULL;
   return q;
 }
+
+
 
 /*
     This function pushes (adds to the tail) of the Q.
@@ -48,11 +51,13 @@ void push(msgQ* q, void* entry)
   q -> amountOfEntries = q -> amountOfEntries + 1;
 }
 
+
+
 /*
     This function pops (fetches the head) of a q.
 
-    @Param the Q to pop.
-    @Return a void pointer to the data of the popped entry.
+    @Param  The Q to pop.
+    @Return  A void pointer to the data of the popped entry.
 */
 void* pop(msgQ* q)
 {

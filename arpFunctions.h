@@ -1,7 +1,7 @@
 #ifndef ARPFUNCTIONS
 #define ARPFUNCTIONS
-#include "linkedList.h"
 #include <net/ethernet.h>
+#include "linkedList.h"
 #include "protocol.h"
 
 #define ARP_BROADCAST 0x00
@@ -11,7 +11,7 @@ typedef struct arpEntry arpEntry;
 struct arpEntry
 {
   uint8_t mip_address;
-  uint8_t mac_address[6];
+  uint8_t mac_address[ETH_ALEN];
   int via_interface;
 }__attribute__ ((packed));
 

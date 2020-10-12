@@ -11,6 +11,19 @@
 #include "protocol.h"
 extern bool debug;
 
+/*
+    This file contains functionality to create both server and client sockets.
+*/
+
+
+
+/*
+    This function create a domain-socket on the server side, and sets it in
+    listen-state to monitor on detect incoming connections.
+
+    @Param  The domain-path to create the socket on.
+    @Return  The socket created.
+*/
 int createDomainServerSocket(char* domain_path)
 {
     int unix_socket;
@@ -18,7 +31,7 @@ int createDomainServerSocket(char* domain_path)
     unix_socket = socket(AF_UNIX, SOCK_SEQPACKET, 0);
     if (unix_socket < 0)
     {
-        perror("socket");
+        printf("socket");
         exit(EXIT_FAILURE);
     }
 
@@ -34,7 +47,7 @@ int createDomainServerSocket(char* domain_path)
     }
 
     if (listen(unix_socket, MAX_APPLICATIONS) == -1) {
-        perror("listen\n");
+        printf("listen\n");
         exit(EXIT_FAILURE);
     }
 
@@ -47,6 +60,15 @@ int createDomainServerSocket(char* domain_path)
     return unix_socket;
 }
 
+
+
+/*
+    This function create a domain-socket on the client side, and connects to
+    the server.
+
+    @Param  The domain-path to connect to.
+    @Return  The socket created.
+*/
 int createDomainClientSocket(char* domain_path)
 {
   int socket_client;
@@ -72,6 +94,13 @@ int createDomainClientSocket(char* domain_path)
   return socket_client;
 }
 
+
+
+/*
+    This function create a raw-socket, of type AF_PACKET and type ETH_P_MIP.
+
+    @Return  The raw-socket.
+*/
 int createRawSocket()
 {
   int sock_fd;
@@ -80,7 +109,7 @@ int createRawSocket()
     if (sock_fd == -1) {
         timestamp();
         printf("raw-socket\n");
-        return -1;
+        exit(EXIT_FAILURE);
     }
 
     if(debug)

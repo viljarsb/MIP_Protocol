@@ -22,6 +22,7 @@
 extern const u_int8_t REQUEST[3];
 extern const u_int8_t RESPONSE[3];
 
+
 u_int8_t MY_MIP_ADDRESS; //This node's mip.
 bool debug = false; //Debug flag
 list* interfaces; //LinkedList of interfaces on this host.
@@ -35,6 +36,7 @@ struct unsent
   char* buffer;
 };
 typedef struct unsent unsent;
+
 
 /*
   This function is called whenever a packet arrives over the raw-socket.
@@ -113,10 +115,6 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
       //The ping is addressed to this node.
       if(mip_header -> dst_addr == MY_MIP_ADDRESS)
       {
-        //Construct a applicationMsg struct and copy the SDU into this.
-        applicationMsg msg;
-        memcpy(&msg.address, &mip_header -> src_addr, sizeof(u_int8_t));
-        memcpy(msg.payload, buffer, mip_header -> sdu_length);
 
         if(debug)
         {
@@ -124,6 +122,10 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
           printf("RECEIVED PING -- MIP SRC: %d -- MIP DST: %d", mip_header -> src_addr, mip_header -> dst_addr);
         }
 
+        //Construct a applicationMsg struct and copy the SDU into this.
+        applicationMsg msg;
+        memcpy(&msg.address, &mip_header -> src_addr, sizeof(u_int8_t));
+        memcpy(msg.payload, buffer, mip_header -> sdu_length);
         //If we have a pingApplication running, send the MSG to that application.
         if(pingApplication != -1)
           sendApplicationMsg(pingApplication, msg.address, msg.payload, -1, mip_header -> sdu_length);
@@ -168,7 +170,7 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
           push(waitingQ, unsent);
 
           //Ask the routing deamon for next hop of this packet.
-          SendForwardingRequest(routingApplication, unsent -> mip_header -> dst_addr);
+          sendForwardingReuest(routingApplication, unsent -> mip_header -> dst_addr);
         }
       }
     }
@@ -180,8 +182,8 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
       {
         timestamp();
         printf("RECIEVIED ROUTING-SDU -- MIP SRC: %u -- MIP DEST: %u", mip_header -> src_addr, mip_header -> dst_addr);
-
       }
+
       //Construct a applicationMsg and copy content of SDU into this.
       applicationMsg msg;
       memset(&msg, 0, sizeof(struct applicationMsg));
@@ -206,6 +208,8 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
     free(mip_header);
     free(buffer);
   }
+
+
 
 /*
   This function is called whenever a packet arrives over the ping-socket.
@@ -239,34 +243,35 @@ void handleApplicationPacket(int activeApplication, int routingApplication, int 
     //Ask the routing-deamon for the next hop of this msg.
     if(routingApplication != -1)
     {
+      if(applicationMsg -> TTL > 0)
+      {
+        sendForwardingReuest(routingApplication, applicationMsg -> address);
 
-      if(applicationMsg -> TTL < 0)
-        return;
-
-      SendForwardingRequest(routingApplication, applicationMsg -> address);
-
-      //Save the msg and q the msg, msg will be handled whenever the routing-deamon answers the request.
-      struct unsent* unsent = malloc(sizeof(struct unsent));
-      unsent -> mip_header = calloc(1, sizeof(struct mip_header));
-      unsent -> mip_header -> src_addr = MY_MIP_ADDRESS;
-      unsent -> mip_header -> dst_addr = applicationMsg -> address;
-      unsent -> mip_header -> sdu_type = PING;
-      unsent -> mip_header -> ttl = applicationMsg -> TTL;
-      unsent -> mip_header -> sdu_length = rc - 2;
-      unsent -> buffer = calloc(1, unsent -> mip_header -> sdu_length);
-      memcpy(unsent -> buffer, applicationMsg -> payload, unsent -> mip_header -> sdu_length);
-      push(waitingQ, unsent);
+        //Save the msg and q the msg, msg will be handled whenever the routing-deamon answers the request.
+        struct unsent* unsent = malloc(sizeof(struct unsent));
+        unsent -> mip_header = calloc(1, sizeof(struct mip_header));
+        unsent -> mip_header -> src_addr = MY_MIP_ADDRESS;
+        unsent -> mip_header -> dst_addr = applicationMsg -> address;
+        unsent -> mip_header -> sdu_type = PING;
+        unsent -> mip_header -> ttl = applicationMsg -> TTL;
+        unsent -> mip_header -> sdu_length = rc - 2;
+        unsent -> buffer = calloc(1, unsent -> mip_header -> sdu_length);
+        memcpy(unsent -> buffer, applicationMsg -> payload, unsent -> mip_header -> sdu_length);
+        push(waitingQ, unsent);
+      }
     }
 
     else
     {
-      printf("CAN NOT SEND MIP-SDU TO REMOTE HOST -- NO ROUTINGDEAMON RUNNING");
+      printf("CAN NOT FOWARD TO REMOTE HOST -- NO ROUTINGDEAMON RUNNING");
     }
   }
 
   //free the msg.
   free(applicationMsg);
 }
+
+
 
 /*
   This function is called whenever a packet arrives over the routing-socket.
@@ -279,9 +284,11 @@ void handleRoutingPacket(int socket_fd, int routingApplication)
   //Construct a applicationMsg pointer and allocate space for this. Then read from the socket into this pointer.
   applicationMsg* applicationMsg = calloc(1, sizeof(struct applicationMsg));
   int rc = readApplicationMsg(routingApplication, applicationMsg);
-  //The msg recived from the routing-deamon is a RESPONSE to a REQUEST
+
+  //The msg recived from the routing-deamon is a RESPONSE to a REQUEST.
   if(memcmp(RESPONSE, applicationMsg -> payload, sizeof(RESPONSE)) == 0)
   {
+
     //Copy content of msg into a routingQuery struct.
     routingQuery query;
     memcpy(&query, &applicationMsg -> payload, sizeof(routingQuery));
@@ -323,21 +330,29 @@ void handleRoutingPacket(int socket_fd, int routingApplication)
     }
   }
 
-  //The msg is not a RESPONSE. Mip-deamon dont care what it is, just broadcast it as a ROUTING-SDU.
+  //If its not a a response, the mip-deamon does not care what it is, just send it where it is addressed.
   else
   {
     u_int8_t dst_mip;
-    memcpy(&dst_mip, applicationMsg -> payload + 3, sizeof(u_int8_t)); //If not a response, adr for packet is at offset 3.
+    memcpy(&dst_mip, applicationMsg -> payload + 3, sizeof(u_int8_t)); //If not a response, adr for packet is at offset 3, after type.
+
     //Create a char pointer and allocate space for the SDU payload (recived bytes - TTL and Address of the applicationMsg)
-    char* buffer = malloc(rc - (sizeof(u_int8_t) * 2));
+    char* buffer = calloc(1, rc - (sizeof(u_int8_t) * 2));
     memcpy(buffer, applicationMsg -> payload, rc - (sizeof(u_int8_t) * 2)); //payload = amount of bytes read - offset of two (fields in the applicaitonMsg)
-    //Send the broadcast over the raw-socket.
+
+    //Send the data.
     sendRoutingSdu(socket_fd, buffer, rc - (sizeof(u_int8_t) * 2), dst_mip); //payload = amount of bytes read - offset of two (fields in the applicaitonMsg)
   }
 
   //free the msg.
   free(applicationMsg);
 }
+
+
+
+/*
+    A very simple signal handler called whenever the user CTRL-C
+*/
 
 void handle_sigint(int sig)
 {
@@ -346,6 +361,7 @@ void handle_sigint(int sig)
       timestamp();
       printf("MIP_DEAMON FORCE-QUIT\n");
     }
+
     freeInterfaces(interfaces);
     freeListMemory(arpCache);
     free(arpQ);
@@ -355,101 +371,119 @@ void handle_sigint(int sig)
     exit(EXIT_SUCCESS);
 }
 
+
+
+/*
+    The main function of the mip-deamon.
+*/
 int main(int argc, char* argv[])
 {
   char* domainPath;
 
-    if(argc == 4 && strcmp(argv[1], "-d") == 0)
+  //Some very simple argument control.
+  if(argc == 4 && strcmp(argv[1], "-d") == 0)
+  {
+    debug = true;
+    domainPath = argv[2];
+    MY_MIP_ADDRESS = atoi(argv[3]);
+  }
+
+  else if(argc == 2 && strcmp(argv[1], "-h") == 0)
+  {
+    printf("Run program with -d (optional debugmode) <domain path> <mip address>\n");
+    exit(EXIT_SUCCESS);
+  }
+
+  else if(argc == 3)
+  {
+    domainPath = argv[1];
+    MY_MIP_ADDRESS = atoi(argv[2]);
+  }
+
+  else
+  {
+    printf("Run program with -h as argument for instructions\n");
+    exit(EXIT_SUCCESS);
+  }
+
+  if(debug)
+  {
+    timestamp();
+    printf("MIP-DEAMON HAS STARTED RUNNING ON HOST %d\n\n", MY_MIP_ADDRESS);
+  }
+
+  //Create a linked list, and fill it with active interfaces.
+  interfaces = createLinkedList(sizeof(interface));
+  findInterfaces(interfaces);
+
+  //Create the arp-cache.
+  arpCache = createLinkedList(sizeof(arpEntry));
+
+  //Create the Q's for waiting msgs.
+  waitingQ = createQ();
+  arpQ = createQ();
+
+  //Sockets.
+  int socket_fd, domain_socket;
+  int pingApplication = -1;
+  int routingApplication = -1;
+  int tempApplication = -1;
+
+  //Create the server sockets, both the raw and the domain-socket.
+  domain_socket = createDomainServerSocket(domainPath);
+  socket_fd = createRawSocket();
+
+  //Create epoll-set and add sockets to monitor.
+  int epoll_fd = epoll_create1(0);
+  if(epoll_fd == -1)
+  {
+     printf("epoll_create\n");
+     exit(EXIT_FAILURE);
+  }
+
+  struct epoll_event events[10];
+  int amountOfEntries;
+  addEpollEntry(domain_socket, epoll_fd);
+  addEpollEntry(socket_fd, epoll_fd);
+
+  //Loop forever.
+  while(true)
+  {
+    amountOfEntries = epoll_wait(epoll_fd, events, 10, -1);
+    signal(SIGINT, handle_sigint);
+    for(int i = 0; i < amountOfEntries; i++)
     {
-      debug = true;
-      domainPath = argv[2];
-      MY_MIP_ADDRESS = atoi(argv[3]);
-    }
-
-    else if(argc == 2 && strcmp(argv[1], "-h") == 0)
-    {
-      printf("Run program with -d (optional debugmode) <domain path> <mip address>\n");
-      exit(EXIT_SUCCESS);
-    }
-
-    else if(argc == 3)
-    {
-      domainPath = argv[1];
-      MY_MIP_ADDRESS = atoi(argv[2]);
-    }
-
-    else
-    {
-      printf("Run program with -h as argument for instructions\n");
-      exit(EXIT_SUCCESS);
-    }
-
-    if(debug)
-    {
-      timestamp();
-      printf("MIP-DEAMON HAS STARTED RUNNING ON HOST %d\n\n", MY_MIP_ADDRESS);
-    }
-
-    interfaces = createLinkedList(sizeof(interface));
-    findInterfaces(interfaces);
-    arpCache = createLinkedList(sizeof(arpEntry));
-    waitingQ = createQ();
-    arpQ = createQ();
-    int socket_fd, domain_socket;
-
-    domain_socket = createDomainServerSocket(domainPath);
-    socket_fd = createRawSocket();
-
-    int epoll_fd = epoll_create1(0);
-    if (epoll_fd == -1)
-    {
-       perror("epoll_create");
-       exit(EXIT_FAILURE);
-     }
-
-    struct epoll_event events[10];
-    int amountOfEntries;
-    addEpollEntry(domain_socket, epoll_fd);
-    addEpollEntry(socket_fd, epoll_fd);
-
-    int pingApplication = -1;
-    int routingApplication = -1;
-    int tempApplication = -1;
-
-    while(true)
-    {
-      amountOfEntries = epoll_wait(epoll_fd, events, 10, -1);
-      signal(SIGINT, handle_sigint);
-      for (int i = 0; i < amountOfEntries; i++)
+      //If we get data over domain-socket, find out program that connected.
+      if(events[i].data.fd == domain_socket)
       {
-         if(events[i].data.fd == domain_socket)
-         {
-           tempApplication = accept(domain_socket, NULL, NULL);
-           handshakeMsg handshakeMsg;
-           applicationMsg* appMsg = calloc(1, sizeof(applicationMsg));
-           readApplicationMsg(tempApplication, appMsg);
-           memcpy(&handshakeMsg, appMsg -> payload, sizeof(handshakeMsg));
+         tempApplication = accept(domain_socket, NULL, NULL);
+         handshakeMsg handshakeMsg;
+         applicationMsg* appMsg = calloc(1, sizeof(applicationMsg));
+         readApplicationMsg(tempApplication, appMsg);
+         memcpy(&handshakeMsg, appMsg -> payload, sizeof(handshakeMsg));
 
-           if(handshakeMsg.value == PING)
+         //A ping application connected.
+          if(handshakeMsg.value == PING)
+          {
+           if(debug)
            {
-             if(debug)
-             {
-               timestamp();
-               printf("A PING APPLICATION CONNECTED\n");
-             }
-
-             pingApplication = tempApplication;
-             tempApplication = -1;
-             addEpollEntry(pingApplication, epoll_fd);
+             timestamp();
+             printf("A PING APPLICATION CONNECTED\n");
            }
 
-           if(handshakeMsg.value == ROUTING)
+            pingApplication = tempApplication;
+            tempApplication = -1;
+            addEpollEntry(pingApplication, epoll_fd);
+           }
+
+          //A routing-deamon connected.
+          if(handshakeMsg.value == ROUTING)
+          {
+           if(debug)
            {
-             if(debug)
-             {
-               timestamp();
-               printf("A ROUTING_DEAMON APPLICATION CONNECTED\n");
-             }
+             timestamp();
+             printf("A ROUTING_DEAMON APPLICATION CONNECTED\n");
+           }
 
              routingApplication = tempApplication;
              tempApplication = -1;
@@ -458,53 +492,59 @@ int main(int argc, char* argv[])
            }
          }
 
-         //closing
-         else if(events[i].events & EPOLLHUP)
-         {
-           if(events[i].data.fd == routingApplication)
-           {
-             if(debug)
-             {
-               timestamp();
-               printf("A ROUTING APPLICATION DISCONNECTED\n");
-             }
+      //closing
+      else if(events[i].events & EPOLLHUP)
+      {
 
-             removeEpollEntry(routingApplication, epoll_fd);
-             close(routingApplication);
-             routingApplication = -1;
-           }
+        //Routing-deamon closed.
+        if(events[i].data.fd == routingApplication)
+        {
+          if(debug)
+          {
+            timestamp();
+            printf("A ROUTING APPLICATION DISCONNECTED\n");
+          }
 
-           else if(events[i].data.fd == pingApplication)
-           {
-             removeEpollEntry(pingApplication, epoll_fd);
-             close(pingApplication);
-             pingApplication = -1;
-             if(debug)
-             {
-               timestamp();
-               printf("A PING APPLICATION DISCONNECTED\n");
-             }
-           }
+          removeEpollEntry(routingApplication, epoll_fd);
+          close(routingApplication);
+          routingApplication = -1;
          }
 
-         //data
-         else if (events[i].events & EPOLLIN)
-         {
-             if(events[i].data.fd == pingApplication)
-             {
-               handleApplicationPacket(pingApplication, routingApplication, socket_fd);
-             }
+          //Ping applicaiton closed.
+        else if(events[i].data.fd == pingApplication)
+        {
+           removeEpollEntry(pingApplication, epoll_fd);
+           close(pingApplication);
+           pingApplication = -1;
+           if(debug)
+           {
+             timestamp();
+             printf("A PING APPLICATION DISCONNECTED\n");
+           }
+        }
+      }
 
-             else if(events[i].data.fd == routingApplication)
-             {
-               handleRoutingPacket(socket_fd, routingApplication);
-             }
+      //data
+      else if (events[i].events & EPOLLIN)
+      {
+          //Data over ping application.
+          if(events[i].data.fd == pingApplication)
+          {
+            handleApplicationPacket(pingApplication, routingApplication, socket_fd);
+          }
 
-             else if(events[i].data.fd == socket_fd)
-             {
-               handleRawPacket(socket_fd, pingApplication, routingApplication);
-             }
-         }
-       }
+          //Data over routing-deamon.
+          else if(events[i].data.fd == routingApplication)
+          {
+            handleRoutingPacket(socket_fd, routingApplication);
+          }
+
+          //Data over raw-socket.
+          else if(events[i].data.fd == socket_fd)
+          {
+            handleRawPacket(socket_fd, pingApplication, routingApplication);
+          }
+      }
     }
   }
+}

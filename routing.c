@@ -14,12 +14,24 @@ const u_int8_t UPDATE[3] = UPD;
 const u_int8_t HELLO[3] = HEL;
 
 /*
+    This file contains functionality of the forwarding engine of the mip-deamon.
+*/
+
+
+
+/*
     This functions send a request to the routing-deamon to ask for the next_hop.
 
     @Param  The socket used to talk to the routingDeamon, the mip to look for.
 */
-void SendForwardingRequest(int routingSocket, u_int8_t mip)
+void sendForwardingReuest(int routingSocket, u_int8_t mip)
 {
+  if(debug)
+  {
+    timestamp();
+    printf("SENDING REQUEST TO ROUTING-DEAMON FOR NEXT HOP ON PATH TO %u\n", mip);
+  }
+
   struct routingQuery query;
   char* buffer = calloc(1, sizeof(routingQuery));
   memcpy(query.type, REQUEST, sizeof(REQUEST));
@@ -28,6 +40,8 @@ void SendForwardingRequest(int routingSocket, u_int8_t mip)
   sendApplicationMsg(routingSocket, MY_MIP_ADDRESS, buffer, -1, sizeof(routingQuery));
   free(buffer);
 }
+
+
 
 /*
     This functions broadcasts ROUTING-SDUs over the broadcast channel.

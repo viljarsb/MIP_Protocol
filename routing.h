@@ -50,6 +50,6 @@ struct routingEntry
 };
 
 
-void SendForwardingRequest(int routingSocket, u_int8_t mip);
+void sendForwardingReuest(int routingSocket, u_int8_t mip);
 void sendRoutingSdu(int socket_fd, char* payload, int len, u_int8_t dst_mip);
 #endif

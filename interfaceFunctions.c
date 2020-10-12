@@ -8,9 +8,14 @@
 #include "log.h"
 extern bool debug;
 
+/*
+    This file provides utility functions to find, fetch and use network interfaces
+*/
+
+
 
 /*
-    This function finds all the active interfaces on the current host (Except for loopback device.)
+    This function finds all the active interfaces on the current host (Except for loopback device)
     The function then adds them all to a linkedlist.
 
     @Param  A linkedlist to add all the interfaces to.
@@ -24,10 +29,11 @@ void findInterfaces(list* interfaceList)
   }
 
   struct ifaddrs *ifaces, *ifp;
-  if (getifaddrs(&ifaces)) {
+  if(getifaddrs(&ifaces))
+  {
      printf("getifaddrs\n");
      exit(EXIT_FAILURE);
-   }
+  }
 
   for (ifp = ifaces; ifp != NULL; ifp = ifp->ifa_next)
   {
@@ -53,9 +59,12 @@ void findInterfaces(list* interfaceList)
   return;
 }
 
+
+
 /*
-    This function look trough the list of interfaces found earlier and finds the interfaced that is requested.
-    @Param  A linkedlist (list of interfaces) and a int (the interface we want.)
+    This function look trough the list of interfaces and finds the interface that is requested.
+
+    @Param  A linkedlist (list of interfaces) and a int (the interface we want)
     @Return  A pointer to a interface if found, if not a NULL.
 */
 interface* getInterface(list* interfaceList, int interface)
@@ -76,18 +85,24 @@ interface* getInterface(list* interfaceList, int interface)
  return NULL;
 }
 
+
+
 /*
     This functions returns a mac_address in a more desirable format.
-    @Param  a mac_address
-    @Return  a string of the mac_address in a nice format.
+
+    @Param  A mac_address
+    @Return  A string of the mac_address in a nice format.
 */
 char* getMacFormat(u_int8_t mac[ETH_ALEN])
 {
   return ether_ntoa((struct ether_addr*)mac);
 }
 
+
+
 /*
     This functions frees memory from interface structs in a list.
+
     @Param  a linkedlist of interfaces.
 */
 void freeInterfaces(list* interfaceList)
@@ -104,5 +119,4 @@ void freeInterfaces(list* interfaceList)
  }
 
  freeListMemory(interfaceList);
- return;
 }

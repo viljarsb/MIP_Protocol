@@ -11,14 +11,22 @@ extern list* arpCache; //Extern linkedList of arp-entries from the mip-deamon.
 extern bool debug; //Extern boolean flag from the mip-deamon.
 extern u_int8_t MY_MIP_ADDRESS; //Extern mip-address from the mip-deamon.
 
+/*
+    This file contains functions to perform arp-related operations.
+    Such as adding to arp-cache, and fetching enteries and sending
+    of arp-requests and arp-braodcasts.
+*/
+
+
 
 /*
     This functions adds another entry into a arp-cache.
+
     @Param  a linkedlist (the arp-cache), the mip and the corresponding mac and the interface related to this entry.
 */
 void addArpEntry(u_int8_t mip, u_int8_t mac[ETH_ALEN], int interface)
 {
-  //Create a arpEntry struct and fill t he fields with the data specified as parameters.
+  //Create a arpEntry struct and fill in the fields with the data specified as parameters.
   arpEntry entry;
   memcpy(&entry.mip_address, &mip, sizeof(mip));
   memcpy(entry.mac_address, mac, ETH_ALEN);
@@ -29,14 +37,18 @@ void addArpEntry(u_int8_t mip, u_int8_t mac[ETH_ALEN], int interface)
     timestamp();
     printf("ADDED %d TO ARP-CACHE -- MAC: %s -- INTERFACE %d\n", entry.mip_address, getMacFormat(entry.mac_address), entry.via_interface);
   }
+
   //Add to the cache specified.
   addEntry(arpCache, &entry);
 }
 
+
+
 /*
     This function fetches an entry from the arp-cache.
+
     @Params   a linkedlist (the arp-cache) and the MIP that is to be looked up in the cache.
-    @Return  a ArpCache entry if the MIP supplied has a corresponding arp entry, if not NULL.
+    @Return  a ArpCache entry if the MIP-address supplied has a corresponding entry, if not NULL.
 */
 arpEntry* getCacheEntry(uint8_t mip)
 {
@@ -61,9 +73,12 @@ arpEntry* getCacheEntry(uint8_t mip)
   return NULL;
 }
 
+
+
 /*
     This function updates the arpEntry in the cache if another host has taken over a MIP.
-    @Param  a linkedlist (the arp-cache), a new mip and a new mac aswell as the related interface.
+
+    @Param  a linkedlist (the arp-cache), a new MIP-address and a new mac-address aswell as the related interface.
 */
 void updateArpEntry(uint8_t mip, u_int8_t mac[ETH_ALEN], int interface)
 {
@@ -81,8 +96,11 @@ void updateArpEntry(uint8_t mip, u_int8_t mac[ETH_ALEN], int interface)
   }
 }
 
+
+
 /*
     This function prints every entry in the arp-cache.
+
     @Param  a linkedlist (the arpCache).
 */
 void printArpCache()
@@ -110,23 +128,26 @@ void printArpCache()
   printf("\n");
 }
 
+
+
 /*
     The funtion constructs an arp-response and a mip-header and sends it over to
-    another funciton along with the next-node to send this data to.
+    another funciton along with the neighbour to send this data to.
 
-    @param  a socket-fd to send the packet on and a destination mip.
+    @Param  a socket-fd to send the packet over and a destination MIP-address.
 */
 void sendArpResponse(int socket_fd, u_int8_t dst_mip)
 {
+
   if(debug)
   {
     timestamp();
     printf("SENDING ARP-RESPONSE -- SRC MIP: %d -- DST MIP: %d\n\n", MY_MIP_ADDRESS, dst_mip);
   }
 
-  //Create a pointer to a mip-header and allocate space and a arpMsg struct.
+  //Create a pointer to a mip-header and allocate space.
   mip_header* mip_header = calloc(1, sizeof(struct mip_header));
-  arpMsg arpMsg;
+  arpMsg arpMsg; //The SDU.
 
   //Fill in the fields of the mip-header.
   mip_header -> dst_addr = dst_mip;
@@ -147,11 +168,13 @@ void sendArpResponse(int socket_fd, u_int8_t dst_mip)
   sendData(socket_fd, mip_header, buffer, mip_header -> dst_addr);
 }
 
+
+
 /*
     The funtion constructs an arp-broadcast and a mip-header and sends it over to
     another funciton along with the node to lookup.
 
-    @param  a socket-descriptor to send the packet on, a list of interfaces and the mip too lookup.
+    @Param  a socket-descriptor to send the packet on, a list of interfaces and the mip too lookup.
 */
 void sendArpBroadcast(int socket_fd, list* interfaces, u_int8_t lookup)
 {
@@ -161,10 +184,11 @@ void sendArpBroadcast(int socket_fd, list* interfaces, u_int8_t lookup)
     printf("SENDING ARP-BROADCAST -- SRC MIP: %d -- DST MIP: %d -- LOOKUP: %d\n\n", MY_MIP_ADDRESS, 0xFF, lookup);
   }
 
-  //Create a pointer to a mip-header and allocate space and a arpMsg struct.
+  uint8_t dst_addr[ETH_ALEN] = BROADCAST_MAC_ADDR; //The destination.
+
+  //Create a pointer to a mip-header and allocate space.
   mip_header* mip_header = calloc(1, sizeof(struct mip_header));
-  arpMsg arpMsg;
-  uint8_t dst_addr[ETH_ALEN] = BROADCAST_MAC_ADDR;
+  arpMsg arpMsg; //The SDU.
 
   //Fill in the mip-header.
   mip_header -> dst_addr = 0xFF;

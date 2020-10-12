@@ -36,7 +36,7 @@ int main(int argc, char* argv[])
     if(ttl < 0)
     {
       printf("Please supply a zero (undefined) or another positive ttl");
-      exit(1);
+      exit(EXIT_SUCCESS);
     }
     domainPath = argv[4];
   }
@@ -56,7 +56,7 @@ int main(int argc, char* argv[])
   //Create and connect to the mip-deamon on path specified, done trough a function in (socketFunctions.c).
   ping_socket = createDomainClientSocket(domainPath);
 
-  //identify this program.
+  //Identify this program.
   sendHandshake(ping_socket, PING);
 
   //Send the msg from the client to the mip-deamon and start a timer.
@@ -68,7 +68,7 @@ int main(int argc, char* argv[])
   struct timeval tv = {1, 0};
   rc = select(FD_SETSIZE, &set, NULL, NULL, &tv);
 
-  //If response is recived before 1 sec has ran.
+  //If response is recived before 1 sec has passed.
   if(rc && FD_ISSET(ping_socket, &set))
   {
     applicationMsg* msg = calloc(1, sizeof(applicationMsg));

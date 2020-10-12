@@ -20,7 +20,6 @@ struct waitingMsg{
 struct msgQ
 {
   qNode* head;
-  qNode* tail;
   int amountOfEntries;
 };
 

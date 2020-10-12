@@ -27,12 +27,12 @@ u_int8_t UPDATE[3] = UPD;
 u_int8_t HELLO[3] = HEL;
 u_int8_t ALIVE[3] = ALV;
 
-extern u_int8_t HANDSHAKE[3];
+extern u_int8_t HANDSHAKE[3]; //Handshake code.
 
 u_int8_t MY_MIP_ADDRESS; //The mip-address of this node, recived from the mip-deamon.
 int routingSocket; //The socket used to talk to mip-deamon.
 bool debug = false; //A debug flag.
-list* timeList; //A linkedlist of neighbours with a value of the last time they sent a keep-alive.
+list* neighbourList; //A linkedlist of neighbours with a value of the last time they sent a keep-alive.
 
 /*
    This function send a KEEP-ALIVE, to tell nodes that this node is active.
@@ -47,14 +47,22 @@ void sendKeepAlive(u_int8_t dst_mip)
     printf("SENDING KEEP-ALIVE TO NEIGHBOURS OVER 255\n");
   }
 
+  //Fill in the struct.
   keepAlive msg;
   memcpy(&msg.type, ALIVE, sizeof(ALIVE));
   memcpy(&msg.adr, &dst_mip, sizeof(u_int8_t));
+
+  //Fill in the buffer with data from the struct.
   char* buffer = calloc(1, sizeof(helloMsg));
   memcpy(buffer, &msg, sizeof(ALIVE));
+
+  //Send the data.
   sendApplicationMsg(routingSocket, MY_MIP_ADDRESS, buffer, 1, sizeof(helloMsg));
   free(buffer);
 }
+
+
+
 /*
     This function is used to tell neighbours that this node is active.
 
@@ -68,15 +76,21 @@ void sendHello(u_int8_t dst_mip)
     printf("SENDING HELLO-MSG TO NEIGHBOURS OVER 255\n");
   }
 
+  //Fill in the struct.
   helloMsg msg;
   msg.adr = dst_mip;
   memcpy(&msg.type, HELLO, sizeof(HELLO));
 
+  //Fill in the buffer with data from the struct.
   char* buffer = calloc(1, sizeof(helloMsg));
   memcpy(buffer, &msg, sizeof(HELLO));
+
+  //Send the data.
   sendApplicationMsg(routingSocket, MY_MIP_ADDRESS, buffer, 1, sizeof(helloMsg));
   free(buffer);
 }
+
+
 
 /*
     This function sends the entire routing table to  neighbours.
@@ -91,31 +105,33 @@ void sendUpdate(u_int8_t dst_mip)
     printf("SENDING UPDATE-MSG TO NEIGHBOURS\n");
   }
 
-  //Fill in the type.
+  //Fill in the type and the destination.
   updateStructure updateStructure;
   memcpy(updateStructure.type, UPDATE, sizeof(UPDATE));
   updateStructure.adr = dst_mip;
-  //Currently 0 data is in the struct.
+  //Currently 0 data is in the struct, there are no routing entries.
   updateStructure.amount = 0;
   updateStructure.data = malloc(0);
 
+  //Create a buffer and copy content.
   char* buffer = calloc(1, sizeof(UPDATE));
   memcpy(buffer, updateStructure.type, sizeof(UPDATE));
 
-  //For every i in 255, check if the routing table has a entry for that mip.
+  //Check every index of the routing table to check if there is a entry at the index.
   for(int i = 0; i < 255; i++)
   {
     //If there is a entry at this index (corresponding with mip)
     //Reallocate more memory, and add it to the data pointer and increase the counter by 1.
     if(findEntry(i) != NULL)
     {
+      //If there is a entry, allocate space and copy over the data. Increase counter.
       updateStructure.amount = updateStructure.amount + 1;
       updateStructure.data = realloc(updateStructure.data, sizeof(routingEntry) * updateStructure.amount);
       memcpy(updateStructure.data + (updateStructure.amount -1) * sizeof(routingEntry), &*routingTable[i], sizeof( routingEntry));
     }
   }
 
-  //Allocate more space in the buffer. 3 bytes for type, 1 for the amount and x * sizeof a routingEntry.
+  //Allocate more space in the buffer. 3 bytes for type, 1 for the amount, 1 for the destination, and x * sizeof a routingEntry.
   buffer = realloc(buffer, sizeof(u_int8_t) * 5 + (sizeof(routingEntry) * updateStructure.amount));
 
   //Copy into buffer, and send the data.
@@ -123,9 +139,13 @@ void sendUpdate(u_int8_t dst_mip)
   memcpy(buffer + 4, &updateStructure.amount, sizeof(u_int8_t));
   memcpy(buffer + 5, updateStructure.data, sizeof(routingEntry) * updateStructure.amount);
   sendApplicationMsg(routingSocket, MY_MIP_ADDRESS, buffer, 1, 5 + (updateStructure.amount * sizeof(routingEntry)));
+
+  //Free the content.
   free(updateStructure.data);
   free(buffer);
 }
+
+
 
 /*
     This function is used to reply to the mip-deamon whenever it asks for a path.
@@ -140,15 +160,21 @@ void sendResponse(int destination, u_int8_t next_hop)
     printf("SENDING ROUTING-RESPONSE FOR MIP: %u -- NEXT HOP: %u\n", destination, next_hop);
   }
 
+  //Fill in the struct.
   routingQuery query;
   memcpy(query.type, RESPONSE, sizeof(RESPONSE));
   query.mip = next_hop;
 
+  //Create a buffer and copy data over.
   char* buffer = calloc(1, sizeof(routingQuery));
   memcpy(buffer, &query, sizeof(routingQuery));
+
+  //Send the data.
   sendApplicationMsg(routingSocket, destination, buffer, -1, sizeof(routingQuery));
   free(buffer);
 }
+
+
 
 /*
     This function is called whenever the timeout runs out.
@@ -158,17 +184,22 @@ void sendResponse(int destination, u_int8_t next_hop)
 */
 void alarm_()
 {
-  if(timeList -> entries > 0)
+  if(neighbourList -> entries > 0)
   {
     if(debug)
     {
       timestamp();
       printf("SENDING KEEP-ALIVE -- INFORMING NEIGHBOURS OF MY PRESENCE\n");
     }
+
+    //Send keep-alive to everyone.
     sendKeepAlive(0xFF);
+    //Control time of last recived keep-alive from neighbours.
     controlTime();
   }
 }
+
+
 
 /*
     This function is called whenever there is data to be read from the socket.
@@ -349,7 +380,7 @@ void handle_sigint(int sig)
     }
   }
 
-  freeListMemory(timeList);
+  freeListMemory(neighbourList);
   close(routingSocket);
   exit(EXIT_SUCCESS);
 }
@@ -357,7 +388,7 @@ void handle_sigint(int sig)
 int main(int argc, char* argv[])
 {
   char* domainPath;
-  timeList = createLinkedList(sizeof(struct timerEntry));
+  neighbourList = createLinkedList(sizeof(struct timerEntry));
 
   if(argc == 2 && strcmp(argv[1], "-h") == 0)
   {

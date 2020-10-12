@@ -14,7 +14,6 @@ bool debug = true; //Implicitly true every time.
 //Runs a ping server.
 int main(int argc, char* argv[])
 {
-  //Variable to hold user specified path.
   //Create a socket variable.
   int ping_socket;
 
@@ -42,8 +41,10 @@ int main(int argc, char* argv[])
     printf("PING-SERVER RUNNING -- LISTENING FOR PINGS\n\n");
   }
 
+  //Identify this program.
   sendHandshake(ping_socket, PING);
 
+  //Create epoll-set
   int epoll_fd = epoll_create1(0);
   if (epoll_fd == -1)
   {
@@ -71,7 +72,7 @@ int main(int argc, char* argv[])
        exit(EXIT_SUCCESS);
       }
 
-       //Data to be read on socket.
+      //Data to be read on socket.
       else if(events[i].events & EPOLLIN)
       {
         if(events[i].data.fd == ping_socket)

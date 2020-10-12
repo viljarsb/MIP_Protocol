@@ -14,8 +14,16 @@ extern list* interfaces; //Extern linkedList of interfaces from the mip-deamon.
 extern msgQ* waitingQ;  //Extern q of waiting Msgs from the mip-deamon.
 extern msgQ* arpQ;
 
+
+/*
+    THis file contains funtions to read and send data over a socket
+    to a remote host.
+*/
+
+
 /*
     This function read from a raw socket into specified memory locations.
+
     @Param  A raw socket, pointers to a ethernet_header, a mip_header, a buffer and a int (interface).
     @Return  A int (amount of bytes read).
 */
@@ -59,8 +67,11 @@ int readRawPacket(int socket_fd, ethernet_header* ethernet_header, mip_header* m
   return bytes;
 }
 
+
+
 /*
     This function writes to a raw socket from specified memory locations.
+
     @Param  A raw socket, pointers to a sockaddr_ll, a mip_header, a buffer, the length of the buffer and the destination mac.
     @Return  A int (amount of bytes sent).
 */
@@ -125,10 +136,19 @@ int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header* mip_he
   return bytes;
 }
 
+
+
 /*
+    This is the function the program should interact with when sending data to
+    remote nodes, sort of like a api.
+    The programs just supply the mip_header, the data and the destination mip.
+    The rest is figured out dynamicly.
+
     This function looks at the mip-header supplied to determine where to send the packet.
     If its broadcast, just broadcast over every interface this node has.
     If its not a broadcast, find the correct arp-entry, and get the next jump.
+
+    @Param  A raw-socket, pointer to mip-header, data and a destination MIP-address.
 */
 void sendData(int socket_fd, mip_header* mip_header, char* buffer, u_int8_t mipDst)
 {

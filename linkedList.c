@@ -3,9 +3,17 @@
 #include <string.h> //memcpy.
 
 /*
+    This file contains functions to create a generic linked list.
+    However not all functionlaity is implemented, if needed it must
+    be implemented in other parts of the program.
+*/
+
+
+
+/*
     This function create a linkedList.
 
-    @Param  the size of the entry elements.
+    @Param  The size of the entry elements.
     @Return  A pointer to a linedList struct, this struct contains a pointer to the first node, and some info such as amount of entries.
 */
 list* createLinkedList(int entrySize)

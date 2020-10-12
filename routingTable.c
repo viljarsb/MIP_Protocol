@@ -10,7 +10,15 @@
 
 extern routingEntry* routingTable[255];
 extern bool debug;
-extern list* timeList;
+extern list* neighbourList;
+
+
+/*
+    This file contains functionality to keep track of the routingtable, and
+    the neighbour nodes, making sure that they are both up to date.
+*/
+
+
 
 /*
     This function sets the cost of all paths with next_hop equal to specified
@@ -20,6 +28,7 @@ extern list* timeList;
 */
 void removeFromRouting(u_int8_t mip)
 {
+  //Look trough entire routing table, find every node with next hop equal to mip.
   for(int i = 0; i < 255; i++)
   {
     if(routingTable[i] != NULL && routingTable[i] -> next_hop == mip)
@@ -29,6 +38,7 @@ void removeFromRouting(u_int8_t mip)
         timestamp();
         printf("COST OF %u SET TO INFINITE, NO WAY TO REACH THIS NODE\n", routingTable[i] -> mip_address);
       }
+      //Set cost of this node to infinite.
       routingTable[i] -> cost = 255;
     }
   }
@@ -40,6 +50,8 @@ void removeFromRouting(u_int8_t mip)
     printRoutingTable();
   }
 }
+
+
 
 /*
     This function just prints out all the current routing entries.
@@ -57,6 +69,7 @@ void printRoutingTable()
 }
 
 
+
 /*
     This function removes a node from a list (list of neighbours),
     so that it will no longer be monitored.
@@ -65,46 +78,51 @@ void printRoutingTable()
 */
 void removeFromList(u_int8_t mip)
 {
-  if(timeList -> head == NULL)
+  if(neighbourList -> head == NULL)
     return;
 
-  node* tempNode = timeList -> head;
+  node* tempNode = neighbourList -> head;
   node* last;
   last = tempNode;
 
+  //Find the node, remove it.
   while(tempNode != NULL)
   {
      struct timerEntry* current = (struct timerEntry*) tempNode -> data;
-     if(timeList -> entries == 1 && current -> mip == mip)
+     if(neighbourList -> entries == 1 && current -> mip == mip)
      {
-       timeList -> head = NULL;
-       timeList -> entries = 0;
+       neighbourList -> head = NULL;
+       neighbourList -> entries = 0;
      }
 
      else if(current -> mip == mip)
      {
        last -> next = tempNode -> next;
        free(tempNode);
-       timeList -> entries = timeList -> entries -1;
+       neighbourList -> entries = neighbourList -> entries -1;
        return;
      }
 
      last = tempNode;
      tempNode = tempNode -> next;
- }
+   }
 }
+
+
 
 /*
     This function controls the times of last recived keep-alives from neighbours.
     If time is too large, remove them from the neighbour list and from the routingtable.
+
+    If the routing table changes, update all directly connected neighbours.
 */
 void controlTime()
 {
   bool changed = false;
-  if(timeList -> head == NULL)
+  if(neighbourList -> head == NULL)
     return;
 
-  node* tempNode = timeList -> head;
+  node* tempNode = neighbourList -> head;
   while(tempNode != NULL)
   {
      struct timerEntry* current = (struct timerEntry*) tempNode -> data;
@@ -129,8 +147,9 @@ void controlTime()
 
  if(changed)
   sendUpdate(0xFF);
-
 }
+
+
 
 /*
     This function simply return the value of a certain index in the routingtable.
@@ -142,6 +161,8 @@ routingEntry* findEntry(u_int8_t mip)
 {
   return routingTable[mip];
 }
+
+
 
 /*
     This function finds the next_hop of path to destination.
@@ -158,6 +179,8 @@ int findNextHop(u_int8_t mip)
   return entry -> next_hop;
 }
 
+
+
 /*
     This function updates the time of last recived keep-alive for a neighbour.
 
@@ -165,10 +188,10 @@ int findNextHop(u_int8_t mip)
 */
 void updateTime(u_int8_t mip)
 {
-  if(timeList -> head == NULL)
+  if(neighbourList -> head == NULL)
     return;
 
-  node* tempNode = timeList -> head;
+  node* tempNode = neighbourList -> head;
   while(tempNode != NULL)
   {
      struct timerEntry* current = (struct timerEntry*) tempNode -> data;
@@ -178,8 +201,10 @@ void updateTime(u_int8_t mip)
        return;
      }
      tempNode = tempNode -> next;
- }
+   }
 }
+
+
 
 /*
     This function add a node to the routingtable. It will also add a
@@ -209,11 +234,13 @@ void addToRoutingTable(u_int8_t mip, u_int8_t cost, u_int8_t next)
       struct timerEntry* timerEntry = malloc(sizeof(struct timerEntry));
       timerEntry -> mip = entry -> mip_address;
       time(&timerEntry -> time);
-      addEntry(timeList, timerEntry);
+      addEntry(neighbourList, timerEntry);
       free(timerEntry);
     }
   }
 }
+
+
 
 /*
     This function updates the estimate of a node if there is already
@@ -238,6 +265,6 @@ void updateRoutingEntry(u_int8_t mip, u_int8_t newCost, u_int8_t newNext)
     struct timerEntry* timerEntry = malloc(sizeof(struct timerEntry));
     timerEntry -> mip = entry -> mip_address;
     time(&timerEntry -> time);
-    addEntry(timeList, timerEntry);
+    addEntry(neighbourList, timerEntry);
   }
 }

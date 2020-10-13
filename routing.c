@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "log.h"
+#include "protocol.h"
 
 extern bool debug;
 extern u_int8_t MY_MIP_ADDRESS;
@@ -53,7 +54,7 @@ void sendRoutingSdu(int socket_fd, char* payload, int len, u_int8_t dst_mip)
   if(debug)
   {
     timestamp();
-    printf("SENDING ROUTING-SDU -- MIP SRC: %u -- MIP DEST: %u\n", MY_MIP_ADDRESS, 0xFF);
+    printf("SENDING ROUTING-SDU -- MIP SRC: %u -- MIP DEST: %u\n", MY_MIP_ADDRESS, dst_mip);
   }
 
   mip_header* mip_header = calloc(1, sizeof(struct mip_header));
@@ -62,10 +63,10 @@ void sendRoutingSdu(int socket_fd, char* payload, int len, u_int8_t dst_mip)
   free(payload);
 
   mip_header -> src_addr = MY_MIP_ADDRESS;
-  mip_header -> dst_addr = 0xFF;
+  mip_header -> dst_addr = dst_mip;
   mip_header -> sdu_type = ROUTING;
-  mip_header -> ttl = 1;
+  mip_header -> ttl = BROADCAST_ttl_MIP;
   mip_header -> sdu_length = len;
 
-  sendData(socket_fd, mip_header, buffer, 0xFF);
+  sendData(socket_fd, mip_header, buffer, dst_mip);
 }

@@ -28,7 +28,7 @@ bool debug = false; //Debug flag
 list* interfaces; //LinkedList of interfaces on this host.
 list* arpCache; //LinkedList of entries in arp-cache.
 msgQ* waitingQ; //A q for mip-packets waiting for route info from routing-deamon.
-msgQ* arpQ; //A q for mip-packets waiting for mac of the next jump of their route.
+list* arpWaitingList; //We cant use a Q for arp-msgs waiting for mac destinations, we cant guarantee they are responded to in order.
 
 struct unsent
 {
@@ -41,7 +41,6 @@ typedef struct unsent unsent;
 /*
   This function is called whenever a packet arrives over the raw-socket.
   It looks at the MIP-Header to determine what kind of packet that has arrived and acts accordingly.
-
   @Param  The raw-socket, the ping-socket and the routing-socket.
 */
 void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
@@ -100,11 +99,9 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
           printArpCache();
         }
 
-        if(arpQ -> amountOfEntries > 0)
+        if(arpWaitingList -> entries > 0)
         {
-          struct arpWaitEntry* arpWaitEntry = pop(arpQ);
-          sendData(socket_fd, arpWaitEntry -> mip_header, arpWaitEntry -> buffer, arpWaitEntry -> dst);
-          free(arpWaitEntry);
+          sendWaitingMsgs(socket_fd, arpWaitingList, mip_header -> src_addr);
         }
      }
     }
@@ -143,13 +140,13 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
       else if(mip_header -> dst_addr != MY_MIP_ADDRESS)
       {
         mip_header -> ttl = mip_header -> ttl -1;
-        //Decrease the TTL and control that it has not reached 0.
+        //Decrease the ttl and control that it has not reached 0.
         if(mip_header -> ttl <= 0)
         {
           if(debug)
           {
             timestamp();
-            printf("RECEIVED PING FOR ANOHTER HOST -- TTL HAS REACHED 0 -- DISCARDING PACKET WITH DESTINATION: %u", mip_header -> dst_addr);
+            printf("RECEIVED PING FOR ANOHTER HOST -- TTL HAS REACHED 0 -- DISCARDING PACKET WITH DESTINATION: %u\n", mip_header -> dst_addr);
           }
         }
 
@@ -158,7 +155,7 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
           if(debug)
           {
             timestamp();
-            printf("RECEIVED PING FOR ANOHTER HOST -- TRYING TO FORWARDING TO %u FOR %u", mip_header -> dst_addr, mip_header -> src_addr);
+            printf("RECEIVED PING FOR ANOHTER HOST -- TRYING TO FORWARDING TO %u FOR %u\n", mip_header -> dst_addr, mip_header -> src_addr);
           }
 
           //Save the msg and q it.
@@ -181,7 +178,7 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
       if(debug)
       {
         timestamp();
-        printf("RECIEVIED ROUTING-SDU -- MIP SRC: %u -- MIP DEST: %u", mip_header -> src_addr, mip_header -> dst_addr);
+        printf("RECIEVIED ROUTING-SDU -- MIP SRC: %u -- MIP DEST: %u\n", mip_header -> src_addr, mip_header -> dst_addr);
       }
 
       //Construct a applicationMsg and copy content of SDU into this.
@@ -198,7 +195,7 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
         if(debug)
         {
           timestamp();
-          printf("CAN NOT SEND DATA TO ROUTINGDEAMON -- NO ROUTINGDEAMON RUNNING");
+          printf("CAN NOT SEND DATA TO ROUTINGDEAMON -- NO ROUTINGDEAMON RUNNING\n");
         }
     }
 
@@ -214,7 +211,6 @@ void handleRawPacket(int socket_fd, int pingApplication, int routingApplication)
 /*
   This function is called whenever a packet arrives over the ping-socket.
   It looks at the address in the applicationMsg struct and determines where to send the packet.
-
   @Param  The ping-socket, the routing-socket and the raw-socket.
 */
 void handleApplicationPacket(int activeApplication, int routingApplication, int socket_fd)
@@ -243,7 +239,7 @@ void handleApplicationPacket(int activeApplication, int routingApplication, int 
     //Ask the routing-deamon for the next hop of this msg.
     if(routingApplication != -1)
     {
-      if(applicationMsg -> TTL > 0)
+      if(applicationMsg -> ttl > 0)
       {
         sendForwardingReuest(routingApplication, applicationMsg -> address);
 
@@ -253,7 +249,7 @@ void handleApplicationPacket(int activeApplication, int routingApplication, int 
         unsent -> mip_header -> src_addr = MY_MIP_ADDRESS;
         unsent -> mip_header -> dst_addr = applicationMsg -> address;
         unsent -> mip_header -> sdu_type = PING;
-        unsent -> mip_header -> ttl = applicationMsg -> TTL;
+        unsent -> mip_header -> ttl = applicationMsg -> ttl;
         unsent -> mip_header -> sdu_length = rc - 2;
         unsent -> buffer = calloc(1, unsent -> mip_header -> sdu_length);
         memcpy(unsent -> buffer, applicationMsg -> payload, unsent -> mip_header -> sdu_length);
@@ -276,7 +272,6 @@ void handleApplicationPacket(int activeApplication, int routingApplication, int 
 /*
   This function is called whenever a packet arrives over the routing-socket.
   It looks at the type of routingMsg and determines what to do.
-
   @Param  The raw-socket, the routing-socket.
 */
 void handleRoutingPacket(int socket_fd, int routingApplication)
@@ -334,9 +329,9 @@ void handleRoutingPacket(int socket_fd, int routingApplication)
   else
   {
     u_int8_t dst_mip;
-    memcpy(&dst_mip, applicationMsg -> payload + 3, sizeof(u_int8_t)); //If not a response, adr for packet is at offset 3, after type.
+    memcpy(&dst_mip, &applicationMsg -> address, sizeof(u_int8_t)); //If not a response, adr for packet is at offset 3, after type.
 
-    //Create a char pointer and allocate space for the SDU payload (recived bytes - TTL and Address of the applicationMsg)
+    //Create a char pointer and allocate space for the SDU payload (recived bytes - ttl and Address of the applicationMsg)
     char* buffer = calloc(1, rc - (sizeof(u_int8_t) * 2));
     memcpy(buffer, applicationMsg -> payload, rc - (sizeof(u_int8_t) * 2)); //payload = amount of bytes read - offset of two (fields in the applicaitonMsg)
 
@@ -364,7 +359,7 @@ void handle_sigint(int sig)
 
     freeInterfaces(interfaces);
     freeListMemory(arpCache);
-    free(arpQ);
+    freeArpList(arpWaitingList);
     free(waitingQ);
 
     //TELL OTHER NODES IM GONE!
@@ -421,8 +416,7 @@ int main(int argc, char* argv[])
 
   //Create the Q's for waiting msgs.
   waitingQ = createQ();
-  arpQ = createQ();
-
+  arpWaitingList = createLinkedList(sizeof(struct arpWaitEntry));
   //Sockets.
   int socket_fd, domain_socket;
   int pingApplication = -1;
@@ -488,9 +482,11 @@ int main(int argc, char* argv[])
              routingApplication = tempApplication;
              tempApplication = -1;
              addEpollEntry(routingApplication, epoll_fd);
-             sendHandshake(routingApplication, MY_MIP_ADDRESS);
+             sendHandshakeReply(routingApplication, MY_MIP_ADDRESS);
            }
-         }
+
+          free(appMsg);
+        }
 
       //closing
       else if(events[i].events & EPOLLHUP)

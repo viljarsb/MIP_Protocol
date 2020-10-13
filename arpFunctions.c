@@ -128,7 +128,68 @@ void printArpCache()
   printf("\n");
 }
 
+void sendWaitingMsgs(int socket_fd, list* arpWaitingList, u_int8_t mip)
+{
+  if(arpWaitingList -> head == NULL)
+    return;
 
+
+  node* tempNode = arpWaitingList -> head;
+  node* next;
+  next;
+  bool changed = false;
+
+  //Find the node, remove it.
+  while(tempNode != NULL)
+  {
+    struct arpWaitEntry* current = (struct arpWaitEntry*) tempNode -> data;
+
+    if(current -> dst == mip)
+     {
+       if(tempNode == arpWaitingList -> head)
+       {
+         arpWaitingList -> head = tempNode -> next;
+       }
+
+       sendData(socket_fd, current -> mip_header, current -> buffer, current -> dst);
+       node* temp = tempNode;
+       tempNode = tempNode -> next;
+       free(temp -> data);
+       free(temp);
+       changed = true;
+       arpWaitingList -> entries = arpWaitingList -> entries -1;
+     }
+
+     if(!changed) {tempNode = tempNode -> next;}
+     else if(changed) {changed = false;}
+   }
+}
+
+void freeArpList(list* arpWaitingList)
+{
+  if(arpWaitingList -> head == NULL)
+  {
+    freeListMemory(arpWaitingList);
+    return;
+  }
+
+  node* tempNode = arpWaitingList -> head;
+  node* last;
+  last = tempNode;
+
+  //Find the node, remove it.
+  while(tempNode != NULL)
+  {
+     struct arpWaitEntry* current = (struct arpWaitEntry*) tempNode -> data;
+     free(current -> mip_header);
+     free(current -> buffer);
+     last = tempNode -> next;
+     free(tempNode);
+     tempNode = last;
+     tempNode = tempNode -> next;
+   }
+   freeListMemory(arpWaitingList);
+}
 
 /*
     The funtion constructs an arp-response and a mip-header and sends it over to
@@ -148,7 +209,7 @@ void sendArpResponse(int socket_fd, u_int8_t dst_mip)
   //Create a pointer to a mip-header and allocate space.
   mip_header* mip_header = calloc(1, sizeof(struct mip_header));
   arpMsg arpMsg; //The SDU.
-
+  memset(&arpMsg, 0, sizeof(arpMsg));
   //Fill in the fields of the mip-header.
   mip_header -> dst_addr = dst_mip;
   mip_header -> src_addr = MY_MIP_ADDRESS;
@@ -189,6 +250,7 @@ void sendArpBroadcast(int socket_fd, list* interfaces, u_int8_t lookup)
   //Create a pointer to a mip-header and allocate space.
   mip_header* mip_header = calloc(1, sizeof(struct mip_header));
   arpMsg arpMsg; //The SDU.
+  memset(&arpMsg, 0, sizeof(arpMsg));
 
   //Fill in the mip-header.
   mip_header -> dst_addr = 0xFF;

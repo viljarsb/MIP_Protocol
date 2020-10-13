@@ -28,37 +28,44 @@ u_int8_t HELLO[3] = HEL;
 u_int8_t ALIVE[3] = ALV;
 
 extern u_int8_t HANDSHAKE[3]; //Handshake code.
+extern u_int8_t HANDSHAKE_REPLY[3]; //Reply code.
 
 u_int8_t MY_MIP_ADDRESS; //The mip-address of this node, recived from the mip-deamon.
 int routingSocket; //The socket used to talk to mip-deamon.
 bool debug = false; //A debug flag.
 list* neighbourList; //A linkedlist of neighbours with a value of the last time they sent a keep-alive.
 
+
 /*
    This function send a KEEP-ALIVE, to tell nodes that this node is active.
-
-   @Param  The destination mip, either over broadcast or 1 jump.
 */
-void sendKeepAlive(u_int8_t dst_mip)
+void sendKeepAlive()
 {
-  if(debug)
-  {
-    timestamp();
-    printf("SENDING KEEP-ALIVE TO NEIGHBOURS OVER 255\n");
-  }
-
   //Fill in the struct.
   keepAlive msg;
   memcpy(&msg.type, ALIVE, sizeof(ALIVE));
-  memcpy(&msg.adr, &dst_mip, sizeof(u_int8_t));
-
-  //Fill in the buffer with data from the struct.
-  char* buffer = calloc(1, sizeof(helloMsg));
+  char* buffer = calloc(1, sizeof(keepAlive));
   memcpy(buffer, &msg, sizeof(ALIVE));
 
-  //Send the data.
-  sendApplicationMsg(routingSocket, MY_MIP_ADDRESS, buffer, 1, sizeof(helloMsg));
-  free(buffer);
+  node* tempNode = neighbourList -> head;
+
+  //Loop over all the neighbours, and unicast a keep-alive.
+  while(tempNode != NULL)
+  {
+     struct neighbourEntry* current = (struct neighbourEntry*) tempNode -> data;
+     tempNode = tempNode -> next;
+
+     if(debug)
+     {
+       timestamp();
+       printf("SENDING KEEP-ALIVE TO NEIGHBOUR WITH MIP: %u\n", current -> mip);
+     }
+
+     //Fill in the buffer with data from the struct.
+     node* tempNode = neighbourList -> head;
+     sendApplicationMsg(routingSocket, current -> mip, buffer, 1, sizeof(keepAlive));
+   }
+   free(buffer);
 }
 
 
@@ -70,23 +77,32 @@ void sendKeepAlive(u_int8_t dst_mip)
 */
 void sendHello(u_int8_t dst_mip)
 {
+
   if(debug)
   {
-    timestamp();
-    printf("SENDING HELLO-MSG TO NEIGHBOURS OVER 255\n");
+    if(dst_mip == 0xFF)
+    {
+      timestamp();
+      printf("SENDING HELLO-MSG TO NEIGHBOURS OVER 255\n");
+    }
+
+    else
+    {
+      timestamp();
+      printf("SENDING HELLO-MSG TO NEIGHBOUR %u\n", dst_mip);
+    }
   }
 
   //Fill in the struct.
   helloMsg msg;
-  msg.adr = dst_mip;
   memcpy(&msg.type, HELLO, sizeof(HELLO));
 
   //Fill in the buffer with data from the struct.
   char* buffer = calloc(1, sizeof(helloMsg));
-  memcpy(buffer, &msg, sizeof(HELLO));
+  memcpy(buffer, &msg, sizeof(helloMsg));
 
   //Send the data.
-  sendApplicationMsg(routingSocket, MY_MIP_ADDRESS, buffer, 1, sizeof(helloMsg));
+  sendApplicationMsg(routingSocket, dst_mip, buffer, 1, sizeof(helloMsg));
   free(buffer);
 }
 
@@ -95,26 +111,25 @@ void sendHello(u_int8_t dst_mip)
 /*
     This function sends the entire routing table to  neighbours.
 
-    @Param  The destination mip, either over broadcast or 1 jump.
+    @Param  The destination mip, 0xFF is not broadcast but unicast to all neighbours.
 */
 void sendUpdate(u_int8_t dst_mip)
 {
   if(debug)
   {
     timestamp();
-    printf("SENDING UPDATE-MSG TO NEIGHBOURS\n");
+    printf("SENDING UPDATE-MSG TO ACTIVE NEIGHBOURS\n");
   }
 
   //Fill in the type and the destination.
   updateStructure updateStructure;
   memcpy(updateStructure.type, UPDATE, sizeof(UPDATE));
-  updateStructure.adr = dst_mip;
   //Currently 0 data is in the struct, there are no routing entries.
   updateStructure.amount = 0;
   updateStructure.data = malloc(0);
 
   //Create a buffer and copy content.
-  char* buffer = calloc(1, sizeof(UPDATE));
+  char* buffer = calloc(1, sizeof(UPDATE) + (sizeof(u_int8_t)));
   memcpy(buffer, updateStructure.type, sizeof(UPDATE));
 
   //Check every index of the routing table to check if there is a entry at the index.
@@ -127,18 +142,54 @@ void sendUpdate(u_int8_t dst_mip)
       //If there is a entry, allocate space and copy over the data. Increase counter.
       updateStructure.amount = updateStructure.amount + 1;
       updateStructure.data = realloc(updateStructure.data, sizeof(routingEntry) * updateStructure.amount);
-      memcpy(updateStructure.data + (updateStructure.amount -1) * sizeof(routingEntry), &*routingTable[i], sizeof( routingEntry));
+      memcpy(updateStructure.data + (updateStructure.amount -1) * sizeof(routingEntry), &*routingTable[i], sizeof(routingEntry));
     }
   }
 
   //Allocate more space in the buffer. 3 bytes for type, 1 for the amount, 1 for the destination, and x * sizeof a routingEntry.
-  buffer = realloc(buffer, sizeof(u_int8_t) * 5 + (sizeof(routingEntry) * updateStructure.amount));
+  buffer = realloc(buffer, sizeof(u_int8_t) * 4 + (sizeof(routingEntry) * updateStructure.amount));
+  memcpy(buffer + 3, &updateStructure.amount, sizeof(u_int8_t));
+  memcpy(buffer + 4, updateStructure.data, sizeof(routingEntry) * updateStructure.amount);
 
-  //Copy into buffer, and send the data.
-  memcpy(buffer + 3, &updateStructure.adr, sizeof(u_int8_t));
-  memcpy(buffer + 4, &updateStructure.amount, sizeof(u_int8_t));
-  memcpy(buffer + 5, updateStructure.data, sizeof(routingEntry) * updateStructure.amount);
-  sendApplicationMsg(routingSocket, MY_MIP_ADDRESS, buffer, 1, 5 + (updateStructure.amount * sizeof(routingEntry)));
+  if(dst_mip != 0xFF)
+  {
+    if(debug)
+    {
+      timestamp();
+      printf("SENDING UPDATE TO NEIGHBOUR WITH MIP: %u\n", dst_mip);
+    }
+    sendApplicationMsg(routingSocket, dst_mip, buffer, 1, 4 + (updateStructure.amount * sizeof(routingEntry)));
+  }
+
+  else if(dst_mip == 0xFF)
+  {
+    node* tempNode = neighbourList -> head;
+    bool sent = false;
+    //Loop over all the neighbours, and unicast a update.
+    while(tempNode != NULL)
+    {
+       struct neighbourEntry* current = (struct neighbourEntry*) tempNode -> data;
+       tempNode = tempNode -> next;
+
+       if(debug)
+       {
+         timestamp();
+         printf("SENDING UPDATE TO NEIGHBOUR WITH MIP: %u\n", current -> mip);
+       }
+       if(!sent) {sent = true;}
+       sendApplicationMsg(routingSocket, current -> mip, buffer, 1, 4 + (updateStructure.amount * sizeof(routingEntry)));
+     }
+
+     if(!sent)
+     {
+       if(debug)
+       {
+         timestamp();
+         printf("NO NEIGHBOURS ACTIVE\n\n");
+       }
+     }
+  }
+
 
   //Free the content.
   free(updateStructure.data);
@@ -170,7 +221,7 @@ void sendResponse(int destination, u_int8_t next_hop)
   memcpy(buffer, &query, sizeof(routingQuery));
 
   //Send the data.
-  sendApplicationMsg(routingSocket, destination, buffer, -1, sizeof(routingQuery));
+  sendApplicationMsg(routingSocket, destination, buffer, 0, sizeof(routingQuery));
   free(buffer);
 }
 
@@ -193,7 +244,7 @@ void alarm_()
     }
 
     //Send keep-alive to everyone.
-    sendKeepAlive(0xFF);
+    sendKeepAlive();
     //Control time of last recived keep-alive from neighbours.
     controlTime();
   }
@@ -223,9 +274,94 @@ void handleIncomingMsg()
     }
     u_int8_t next_hop = findNextHop(query.mip);
     sendResponse(query.mip, next_hop);
+  }  //If we got a UPDATE from a neighbour.
+
+  else if(memcmp(UPDATE, applicationMsg -> payload, sizeof(UPDATE)) == 0)
+  {
+    if(debug)
+    {
+      timestamp();
+      printf("RECIEVIED ROUTING-UPDATE FROM %u -- UPDATING ROUTINGTABLE\n", applicationMsg -> address);
+    }
+
+    bool changed = false;
+
+    updateStructure updateStructure;
+    memcpy(&updateStructure, applicationMsg -> payload, sizeof(u_int8_t) * 4);
+    //memcpy(&updateStructure.amount, applicationMsg -> payload + 3, 1);
+    updateStructure.data = malloc(updateStructure.amount * sizeof(routingEntry));
+    memcpy(updateStructure.data, applicationMsg -> payload + 4, updateStructure.amount * sizeof(routingEntry));
+
+    int currentPos = 0;
+    int counter = 0;
+    routingEntry entry;
+    while(counter < updateStructure.amount)
+    {
+      memcpy(&entry, updateStructure.data + currentPos, sizeof(routingEntry));
+      currentPos = currentPos + sizeof(routingEntry);
+
+      if(findEntry(entry.mip_address) == NULL)
+      {
+        addToRoutingTable(entry.mip_address, entry.cost + 1, applicationMsg -> address);
+        changed = true;
+      }
+
+      else if(findEntry(entry.mip_address) != NULL)
+      {
+        if(entry.cost == 255)
+        {
+          if(findEntry(entry.mip_address) -> next_hop == applicationMsg -> address)
+          {
+            findEntry(entry.mip_address) -> cost = 255;
+            changed = true;
+
+            if(debug)
+            {
+              timestamp();
+              printf("SET COST OF %u SET TO INFINITE\n\n", entry.mip_address);
+            }
+          }
+        }
+
+        else if(entry.cost + 1 < findEntry(entry.mip_address) -> cost)
+        {
+          updateRoutingEntry(entry.mip_address, entry.cost + 1, applicationMsg -> address);
+          changed = true;
+          if(debug)
+          {
+            timestamp();
+            printf("UPDATED COST OF %u TO: %u\n\n", entry.mip_address, entry.cost + 1);
+          }
+        }
+      }
+
+      counter = counter +1;
+    }
+
+    if(changed)
+    {
+      if(debug)
+      {
+        timestamp();
+        printf("UPDATED COMPLETE -- TABLE WAS ALTERED -- SENDING UPDATE TO NEIGHBOURS\n");
+        printRoutingTable();
+      }
+      sendUpdate(0xFF);
+    }
+
+    else
+    {
+      if(debug)
+      {
+        timestamp();
+        printf("UPDATED COMPLETE -- TABLE WAS NOT ALTERED\n\n");
+      }
+    }
+
+    free(updateStructure.data);
   }
 
-  if(memcmp(HANDSHAKE, applicationMsg -> payload, sizeof(HANDSHAKE)) == 0)
+  else if(memcmp(HANDSHAKE_REPLY, applicationMsg -> payload, sizeof(HANDSHAKE_REPLY)) == 0)
   {
     if(debug)
     {
@@ -237,6 +373,12 @@ void handleIncomingMsg()
     memcpy(&msg, applicationMsg -> payload, sizeof(handshakeMsg));
     MY_MIP_ADDRESS = msg.value;
     addToRoutingTable(MY_MIP_ADDRESS, 0, MY_MIP_ADDRESS);
+    if(debug)
+    {
+      timestamp();
+      printf("SENDING INITIAL HELLO-BROADCAST\n");
+    }
+    sendHello(0xFF);
   }
 
   //If we got a HELLO msg from a neighbour.
@@ -244,7 +386,6 @@ void handleIncomingMsg()
   {
     struct routingEntry* entry = findEntry(applicationMsg -> address);
 
-    //If this node never been part of the network, or if its rejoining.
     if(entry == NULL || entry -> cost == 255)
     {
       if(debug)
@@ -254,10 +395,19 @@ void handleIncomingMsg()
         timestamp();
         printf("REPLYING TO %u WITH HELLO\n", applicationMsg -> address);
       }
+
       addToRoutingTable(applicationMsg -> address, 1, applicationMsg -> address);
-      sendHello(applicationMsg -> address);
+      sendUpdate(0xFF);
+    }
+
+    else if(findNeighbour(applicationMsg -> address) == true)
+    {
+      timestamp();
+      printf("%u SEEMS TO HAVE DISCONNECTED FOR A WHILE -- BACK IN ROUTING-NETWORK NOW\n\n", applicationMsg -> address);
+      updateTime(applicationMsg -> address);
       sendUpdate(applicationMsg -> address);
     }
+
   }
 
   //If we got a KEEP-ALIVE from a neighbour.
@@ -284,10 +434,10 @@ void handleIncomingMsg()
     bool changed = false;
 
     updateStructure updateStructure;
-    memcpy(&updateStructure, applicationMsg -> payload, sizeof(u_int8_t) * 5);
+    memcpy(&updateStructure, applicationMsg -> payload, sizeof(u_int8_t) * 4);
     //memcpy(&updateStructure.amount, applicationMsg -> payload + 3, 1);
     updateStructure.data = malloc(updateStructure.amount * sizeof(routingEntry));
-    memcpy(updateStructure.data, applicationMsg -> payload + 5, updateStructure.amount * sizeof(routingEntry));
+    memcpy(updateStructure.data, applicationMsg -> payload + 4, updateStructure.amount * sizeof(routingEntry));
 
     int currentPos = 0;
     int counter = 0;
@@ -388,7 +538,7 @@ void handle_sigint(int sig)
 int main(int argc, char* argv[])
 {
   char* domainPath;
-  neighbourList = createLinkedList(sizeof(struct timerEntry));
+  neighbourList = createLinkedList(sizeof(struct neighbourEntry));
 
   if(argc == 2 && strcmp(argv[1], "-h") == 0)
   {
@@ -418,25 +568,17 @@ int main(int argc, char* argv[])
   routingSocket = createDomainClientSocket(domainPath);
   sendHandshake(routingSocket, ROUTING);
 
-  if(debug)
+  int epoll_fd = epoll_create1(0);
+  if (epoll_fd == -1)
   {
-    timestamp();
-    printf("SENDING INITIAL HELLO-BROADCAST\n");
+     printf("epoll_create\n");
+     exit(EXIT_FAILURE);
   }
-
-  sendHello(0xFF);
-
-    int epoll_fd = epoll_create1(0);
-    if (epoll_fd == -1)
-    {
-       printf("epoll_create\n");
-       exit(EXIT_FAILURE);
-     }
 
      int timer_fd;
      struct itimerspec ts;
      memset(&ts, 0, sizeof(struct itimerspec));
-     ts.it_value.tv_sec = 5;
+     ts.it_value.tv_sec = 10;
      ts.it_value.tv_nsec = 0;
      timer_fd = timerfd_create(CLOCK_REALTIME, 0);
 

@@ -22,6 +22,8 @@ struct arpWaitEntry
   char* buffer;
 };
 
+void sendWaitingMsgs(int socket_fd, list* arpWaitingList, u_int8_t mip);
+void freeArpList(list* arpWaitingList);
 void addArpEntry(u_int8_t mip, u_int8_t mac[ETH_ALEN], int interface);
 arpEntry* getCacheEntry(uint8_t mip);
 void updateArpEntry(uint8_t mip, u_int8_t mac[ETH_ALEN], int interface);

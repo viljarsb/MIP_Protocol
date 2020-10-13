@@ -13,10 +13,11 @@ extern int debug; //Extern debugflag from mip-deamon.
 extern list* interfaces; //Extern linkedList of interfaces from the mip-deamon.
 extern msgQ* waitingQ;  //Extern q of waiting Msgs from the mip-deamon.
 extern msgQ* arpQ;
+extern list* arpWaitingList;
 
 
 /*
-    THis file contains funtions to read and send data over a socket
+    This file contains funtions to read and send data over a socket
     to a remote host.
 */
 
@@ -174,8 +175,8 @@ void sendData(int socket_fd, mip_header* mip_header, char* buffer, u_int8_t mipD
   arpEntry* entry = getCacheEntry(mipDst);
   if(entry == NULL)
   {
-    struct arpWaitEntry* arpWaitEntry = malloc(sizeof(struct arpWaitEntry));
-    arpWaitEntry -> dst = mipDst;
+    struct arpWaitEntry arpWaitEntry;
+    arpWaitEntry.dst = mipDst;
 
     //FIND ANOTHER WAY!!
     struct mip_header* header = malloc(sizeof(mip_header));
@@ -185,9 +186,9 @@ void sendData(int socket_fd, mip_header* mip_header, char* buffer, u_int8_t mipD
     free(mip_header);
     free(buffer);
 
-    arpWaitEntry -> mip_header = header;
-    arpWaitEntry -> buffer = buffer2;
-    push(arpQ, arpWaitEntry);
+    arpWaitEntry.mip_header = header;
+    arpWaitEntry.buffer = buffer2;
+    addEntry(arpWaitingList, &arpWaitEntry);
     sendArpBroadcast(socket_fd, interfaces, mipDst);
     return;
   }

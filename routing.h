@@ -9,7 +9,6 @@
 #define HEL {0x48, 0x45, 0x4c} //HELLO
 #define ALV {0x41, 0x4c, 0x56} //KEEP-ALIVE
 
-
 typedef struct helloMsg helloMsg;
 typedef struct keepAlive keepAlive;
 typedef struct routingEntry routingEntry;
@@ -25,19 +24,16 @@ struct routingQuery
 struct helloMsg
 {
   u_int8_t type[3];
-  u_int8_t adr;
 };
 
 struct keepAlive
 {
   u_int8_t type[3];
-  u_int8_t adr;
 };
 
 struct updateStructure
 {
   u_int8_t type[3];
-  u_int8_t adr;
   u_int8_t amount;
   void* data;
 };

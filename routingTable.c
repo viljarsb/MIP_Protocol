@@ -7,6 +7,7 @@
 #include "linkedList.h"
 #include "routing_deamon.h"
 #include "log.h"
+#include <stdbool.h>
 
 extern routingEntry* routingTable[255];
 extern bool debug;
@@ -88,7 +89,7 @@ void removeFromList(u_int8_t mip)
   //Find the node, remove it.
   while(tempNode != NULL)
   {
-     struct timerEntry* current = (struct timerEntry*) tempNode -> data;
+     struct neighbourEntry* current = (struct neighbourEntry*) tempNode -> data;
      if(neighbourList -> entries == 1 && current -> mip == mip)
      {
        neighbourList -> head = NULL;
@@ -105,6 +106,15 @@ void removeFromList(u_int8_t mip)
 
      last = tempNode;
      tempNode = tempNode -> next;
+   }
+
+   if(neighbourList -> entries == 0)
+   {
+     if(debug)
+     {
+       timestamp();
+       printf("THIS NODE IS CURRENTLY ISOLATED -- ENTERING PASSIVE STATE -- WILL NOT SEND KEEP-ALIVE OR UPDATES\n\n");
+     }
    }
 }
 
@@ -125,10 +135,11 @@ void controlTime()
   node* tempNode = neighbourList -> head;
   while(tempNode != NULL)
   {
-     struct timerEntry* current = (struct timerEntry*) tempNode -> data;
+     struct neighbourEntry* current = (struct neighbourEntry*) tempNode -> data;
      time_t currentTime;
      time(&currentTime);
-     if(difftime(currentTime, current -> time) > 10)
+     //If a neighbour has not sent keep-alive in 30 sec, consider them dead. 
+     if(difftime(currentTime, current -> time) > 30)
      {
        if(debug)
        {
@@ -145,7 +156,7 @@ void controlTime()
      tempNode = tempNode -> next;
  }
 
- if(changed)
+ if(changed && neighbourList -> entries > 0)
   sendUpdate(0xFF);
 }
 
@@ -194,7 +205,7 @@ void updateTime(u_int8_t mip)
   node* tempNode = neighbourList -> head;
   while(tempNode != NULL)
   {
-     struct timerEntry* current = (struct timerEntry*) tempNode -> data;
+     struct neighbourEntry* current = (struct neighbourEntry*) tempNode -> data;
      if(current -> mip == mip)
      {
        time(&current -> time);
@@ -204,7 +215,21 @@ void updateTime(u_int8_t mip)
    }
 }
 
+bool findNeighbour(u_int8_t mip)
+{
+  node* tempNode = neighbourList -> head;
+  while(tempNode != NULL)
+  {
+     struct neighbourEntry* current = (struct neighbourEntry*) tempNode -> data;
+     if(current -> mip == mip)
+     {
+       return true;
+     }
+     tempNode = tempNode -> next;
+   }
 
+   return false;
+}
 
 /*
     This function add a node to the routingtable. It will also add a
@@ -231,11 +256,10 @@ void addToRoutingTable(u_int8_t mip, u_int8_t cost, u_int8_t next)
     //This is a neighbour over a direct link
     if(entry -> cost == 1)
     {
-      struct timerEntry* timerEntry = malloc(sizeof(struct timerEntry));
-      timerEntry -> mip = entry -> mip_address;
-      time(&timerEntry -> time);
-      addEntry(neighbourList, timerEntry);
-      free(timerEntry);
+      struct neighbourEntry neighbourEntry;
+      neighbourEntry.mip = entry -> mip_address;
+      time(&neighbourEntry.time);
+      addEntry(neighbourList, &neighbourEntry);
     }
   }
 }
@@ -262,9 +286,9 @@ void updateRoutingEntry(u_int8_t mip, u_int8_t newCost, u_int8_t newNext)
 
   if(entry -> cost == 1)
   {
-    struct timerEntry* timerEntry = malloc(sizeof(struct timerEntry));
-    timerEntry -> mip = entry -> mip_address;
-    time(&timerEntry -> time);
-    addEntry(neighbourList, timerEntry);
+    struct neighbourEntry neighbourEntry;
+    neighbourEntry.mip = entry -> mip_address;
+    time(&neighbourEntry.time);
+    addEntry(neighbourList, &neighbourEntry);
   }
 }

@@ -1,17 +1,15 @@
-#include "routingTable.h"
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
-#include "routing.h"
-#include "linkedList.h"
-#include "routing_deamon.h"
-#include "log.h"
-#include <stdbool.h>
+#include <stdbool.h> //Boolean values.
+#include <stdio.h> //printf.
+#include <stdlib.h> //u_int8_t etc..
+#include <time.h> //time.
+#include "routingTable.h" //Singatures of this file.
+#include "linkedList.h" //linkedList.
+#include "routing_daemon.h" //sendUpdate.
+#include "log.h" //timestamp.
 
-extern routingEntry* routingTable[255];
-extern bool debug;
-extern list* neighbourList;
+extern routingEntry* routingTable[255]; //Extern routingtable.
+extern bool debug; //Extern debug flag.
+extern list* neighbourList; //Extern list of neighbours.
 
 
 /*
@@ -25,7 +23,7 @@ extern list* neighbourList;
     This function sets the cost of all paths with next_hop equal to specified
     mip to infinity (255). This means that these paths does not work anymore.
 
-    @Param  The mip that is to be removed.
+    @Param  The mip that is to be removed from the routing.
 */
 void removeFromRouting(u_int8_t mip)
 {
@@ -56,6 +54,7 @@ void removeFromRouting(u_int8_t mip)
 
 /*
     This function just prints out all the current routing entries.
+    With destination, cost and next hop.
 */
 void printRoutingTable()
 {
@@ -79,43 +78,52 @@ void printRoutingTable()
 */
 void removeFromList(u_int8_t mip)
 {
-  if(neighbourList -> head == NULL)
+  node* current = neighbourList -> head;
+  node* prev = NULL;
+  bool found = false;
+
+  if(current == NULL)
     return;
 
-  node* tempNode = neighbourList -> head;
-  node* last;
-  last = tempNode;
-
-  //Find the node, remove it.
-  while(tempNode != NULL)
+  while(current != NULL)
   {
-     struct neighbourEntry* current = (struct neighbourEntry*) tempNode -> data;
-     if(neighbourList -> entries == 1 && current -> mip == mip)
-     {
-       neighbourList -> head = NULL;
-       neighbourList -> entries = 0;
-     }
+    struct neighbourEntry* currentData = (struct neighbourEntry*) current -> data;
+    if(currentData -> mip == mip)
+    {
+      found = true;
+      break;
+    }
 
-     else if(current -> mip == mip)
-     {
-       last -> next = tempNode -> next;
-       free(tempNode);
-       neighbourList -> entries = neighbourList -> entries -1;
-       return;
-     }
+    prev = current;
+    current = current -> next;
+  }
 
-     last = tempNode;
-     tempNode = tempNode -> next;
-   }
+  if(found)
+  {
+    if(prev == NULL)  // deleting head node
+    {
+      neighbourList -> head = current -> next;
+    }
 
-   if(neighbourList -> entries == 0)
-   {
-     if(debug)
-     {
-       timestamp();
-       printf("THIS NODE IS CURRENTLY ISOLATED -- ENTERING PASSIVE STATE -- WILL NOT SEND KEEP-ALIVE OR UPDATES\n\n");
+    else
+    {
+      prev -> next = current -> next;
+    }
+  }
+
+  free(current -> data);
+  free(current);
+  neighbourList -> entries = neighbourList -> entries - 1;
+
+  //If we end up with 0 neighbours that are active.
+  if(neighbourList -> entries == 0)
+  {
+       if(debug)
+       {
+         timestamp();
+         printf("THIS NODE IS CURRENTLY ISOLATED -- ENTERING PASSIVE STATE -- WILL NOT SEND KEEP-ALIVE OR UPDATES\n\n");
+       }
      }
-   }
 }
 
 
@@ -129,6 +137,7 @@ void removeFromList(u_int8_t mip)
 void controlTime()
 {
   bool changed = false;
+  bool changed2 = false;
   if(neighbourList -> head == NULL)
     return;
 
@@ -138,7 +147,10 @@ void controlTime()
      struct neighbourEntry* current = (struct neighbourEntry*) tempNode -> data;
      time_t currentTime;
      time(&currentTime);
-     //If a neighbour has not sent keep-alive in 30 sec, consider them dead. 
+
+     //If a neighbour has not sent keep-alive in 30 sec, consider them dead.
+     //This time should give a node that crashes or quits some time to reneter
+     //the network before they are dismissed.
      if(difftime(currentTime, current -> time) > 30)
      {
        if(debug)
@@ -149,15 +161,18 @@ void controlTime()
          printf("REMOVED ALL PATHS TROUGH %u FROM ROUTING TABLE\n\n", current -> mip);
        }
 
+       tempNode = tempNode -> next;
        removeFromRouting(current -> mip);
        removeFromList(current -> mip);
        changed = true;
+       changed2 = true;
      }
-     tempNode = tempNode -> next;
+     if(!changed) {tempNode = tempNode -> next;}
+     if(changed) {changed = false;}
  }
 
- if(changed && neighbourList -> entries > 0)
-  sendUpdate(0xFF);
+ if(changed2 && neighbourList -> entries > 0)
+  sendUpdate(0xFF); //Send updates to all neighbours.
 }
 
 
@@ -167,6 +182,7 @@ void controlTime()
     The indexes corresponds with mip-addresses.
 
     @Param  The mip to lookup in the routingtable.
+    @Return  A routingEntry, with info of cost and next hop.
 */
 routingEntry* findEntry(u_int8_t mip)
 {
@@ -203,6 +219,8 @@ void updateTime(u_int8_t mip)
     return;
 
   node* tempNode = neighbourList -> head;
+
+  //Find the neighbour and reset their timer.
   while(tempNode != NULL)
   {
      struct neighbourEntry* current = (struct neighbourEntry*) tempNode -> data;
@@ -215,9 +233,19 @@ void updateTime(u_int8_t mip)
    }
 }
 
+
+
+/*
+    This function finds out if a mip-address corresponds with one of
+    this nodes active neighbours.
+
+    @Param  A mip to check.
+    @Return  A boolean value, true if present, if not false.
+*/
 bool findNeighbour(u_int8_t mip)
 {
   node* tempNode = neighbourList -> head;
+  //Iterate the list and look for neighbour with specified mip.
   while(tempNode != NULL)
   {
      struct neighbourEntry* current = (struct neighbourEntry*) tempNode -> data;
@@ -230,6 +258,8 @@ bool findNeighbour(u_int8_t mip)
 
    return false;
 }
+
+
 
 /*
     This function add a node to the routingtable. It will also add a
@@ -254,10 +284,11 @@ void addToRoutingTable(u_int8_t mip, u_int8_t cost, u_int8_t next)
     routingTable[mip] = entry;
 
     //This is a neighbour over a direct link
-    if(entry -> cost == 1)
+    if(entry -> cost == 1 && !findNeighbour(entry -> mip_address))
     {
       struct neighbourEntry neighbourEntry;
       neighbourEntry.mip = entry -> mip_address;
+      //Set their timer and add to list.
       time(&neighbourEntry.time);
       addEntry(neighbourList, &neighbourEntry);
     }
@@ -280,11 +311,12 @@ void updateRoutingEntry(u_int8_t mip, u_int8_t newCost, u_int8_t newNext)
     timestamp();
     printf("UPDATING COST OF MIP: %u TO %u WITH NEXT_HOP: %u\n\n", mip, newCost, newNext);
   }
+
   routingEntry* entry = findEntry(mip);
   entry -> cost = newCost;
   entry -> next_hop = newNext;
 
-  if(entry -> cost == 1)
+  if(entry -> cost == 1 && !findNeighbour(entry -> mip_address))
   {
     struct neighbourEntry neighbourEntry;
     neighbourEntry.mip = entry -> mip_address;

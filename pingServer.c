@@ -1,15 +1,24 @@
 #include <stdio.h> //printf.
 #include <string.h> //strcat etc.
 #include <sys/epoll.h> //epoll.
-#include <unistd.h> //write REMOVE REMOVE REMOVE REMOVE.
-#include <stdbool.h> //boolean values.
-
+#include <unistd.h> //close
+#include <stdbool.h> //Boolean values.
+#include <signal.h> //signals.
 #include "socketFunctions.h" //create and connect to socket.
 #include "epollFunctions.h" //Epoll utility functions.
 #include "applicationFunctions.h" //sendApplicationMsg
-#include "protocol.h"
 #include "log.h"  //timestamp.
 bool debug = true; //Implicitly true every time.
+#define PING 0x02
+
+//simple signalhandler.
+void handle_sigint(int sig)
+{
+  timestamp();
+  printf("PING-SERVER FORCEQUIT\n");
+  exit(EXIT_SUCCESS);
+}
+
 
 //Runs a ping server.
 int main(int argc, char* argv[])
@@ -21,7 +30,7 @@ int main(int argc, char* argv[])
   if(argc == 2 && strcmp(argv[1], "-h") == 0)
   {
     printf("Run program with <domain path>\n");
-    exit(1);
+    exit(EXIT_SUCCESS);
   }
 
   else if(argc == 2)
@@ -32,7 +41,7 @@ int main(int argc, char* argv[])
   else if(argc != 2)
   {
     printf("Program can not run.\nAttempt to run with -h for instructions.\n");
-    exit(1);
+    exit(EXIT_SUCCESS);
   }
 
   if(debug)
@@ -58,8 +67,9 @@ int main(int argc, char* argv[])
   int bytes;
 
   //Loop forever.
-  while(1)
+  while(true)
   {
+    signal(SIGINT, handle_sigint);
     //block until the socket-fd has data to be processed.
     amountOfEntries = epoll_wait(epoll_fd, events, 1, -1);
     for(int i = 0; i < amountOfEntries; i++)
@@ -69,6 +79,8 @@ int main(int argc, char* argv[])
       {
        timestamp();
        printf("MIP-DEAMON SHUTDOWN -- TERMINATING EXECUTION\n");
+       close(ping_socket);
+       close(epoll_fd);
        exit(EXIT_SUCCESS);
       }
 
@@ -102,11 +114,13 @@ int main(int argc, char* argv[])
 
          free(msg);
          free(temp);
+
          if(debug)
          {
            timestamp();
            printf("LISTENING FOR NEW PINGS\n\n");
          }
+
        }
       }
     }

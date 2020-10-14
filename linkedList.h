@@ -4,6 +4,7 @@
 typedef struct linkedList list;
 typedef struct node node;
 
+//Struct to store the size of the list, the size of each element and the start of the list.
 struct linkedList
 {
   int entries;
@@ -11,6 +12,7 @@ struct linkedList
   struct node* head;
 };
 
+//Struct to store entries in a linkedlist, contains data pointer and a pointer to the next node.
 struct node
 {
   void* data;

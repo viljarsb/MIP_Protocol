@@ -1,19 +1,16 @@
-#include <sys/socket.h>
-#include <string.h>
-#include <stdio.h>
-#include <arpa/inet.h>
-
-#include "rawFunctions.h"
-#include "interfaceFunctions.h"
-#include "arpFunctions.h"
-#include "msgQ.h"
-#include "log.h"
+#include <string.h> //memcpy.
+#include <stdio.h> //printf.
+#include <arpa/inet.h> //msghdr, recvmsg etc..
+#include "rawFunctions.h" //Singatures of this file.
+#include "interfaceFunctions.h" //Interfaces.
+#include "arpFunctions.h" //Arp funtionality.
+#include "msgQ.h" //Q for msgs.
+#include "log.h" //timestamp.
 
 extern int debug; //Extern debugflag from mip-deamon.
 extern list* interfaces; //Extern linkedList of interfaces from the mip-deamon.
 extern msgQ* waitingQ;  //Extern q of waiting Msgs from the mip-deamon.
-extern msgQ* arpQ;
-extern list* arpWaitingList;
+extern list* arpWaitingList; //Extern linkedList of Msgs waiting for arp-responses.
 
 
 /*
@@ -22,8 +19,9 @@ extern list* arpWaitingList;
 */
 
 
+
 /*
-    This function read from a raw socket into specified memory locations.
+    This function read from a raw-socket into specified memory locations.
 
     @Param  A raw socket, pointers to a ethernet_header, a mip_header, a buffer and a int (interface).
     @Return  A int (amount of bytes read).
@@ -145,7 +143,7 @@ int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header* mip_he
     The programs just supply the mip_header, the data and the destination mip.
     The rest is figured out dynamicly.
 
-    This function looks at the mip-header supplied to determine where to send the packet.
+    This function looks at the dst_mip supplied to determine where to send the packet.
     If its broadcast, just broadcast over every interface this node has.
     If its not a broadcast, find the correct arp-entry, and get the next jump.
 
@@ -154,7 +152,7 @@ int sendRawPacket(int socket, struct sockaddr_ll *socketname, mip_header* mip_he
 void sendData(int socket_fd, mip_header* mip_header, char* buffer, u_int8_t mipDst)
 {
   //Send over broadcast mac if destination mip is 255.
-  if(mip_header -> dst_addr == 0xFF)
+  if(mip_header -> dst_addr == 0xFF && mipDst == 0xFF)
   {
     uint8_t dst_addr[ETH_ALEN] = BROADCAST_MAC_ADDR;
     node* tempInterface = interfaces -> head;
@@ -172,22 +170,17 @@ void sendData(int socket_fd, mip_header* mip_header, char* buffer, u_int8_t mipD
     return;
   }
 
+  //Check cache.
   arpEntry* entry = getCacheEntry(mipDst);
+
+  //If not entry is found for that mip, store the msg and send a arp-broadcast.
   if(entry == NULL)
   {
     struct arpWaitEntry arpWaitEntry;
     arpWaitEntry.dst = mipDst;
 
-    //FIND ANOTHER WAY!!
-    struct mip_header* header = malloc(sizeof(mip_header));
-    memcpy(header, mip_header, sizeof(mip_header));
-    char* buffer2 = malloc(mip_header -> sdu_length);
-    memcpy(buffer2, buffer, mip_header  -> sdu_length);
-    free(mip_header);
-    free(buffer);
-
-    arpWaitEntry.mip_header = header;
-    arpWaitEntry.buffer = buffer2;
+    arpWaitEntry.mip_header = mip_header;
+    arpWaitEntry.buffer = buffer;
     addEntry(arpWaitingList, &arpWaitEntry);
     sendArpBroadcast(socket_fd, interfaces, mipDst);
     return;

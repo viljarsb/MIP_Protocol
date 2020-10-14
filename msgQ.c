@@ -1,6 +1,16 @@
 #include "msgQ.h"
 
 /*
+    This file contains functionality to create a Q.
+    The Q is in this context meant to store mip-datagrams
+    while the routing deamon looks up the next jump.
+
+    However list is generic.
+*/
+
+
+
+/*
     This function create a empty Q.
 
     @Return  a pointer to a msgQ, used to access the Q.
@@ -18,7 +28,7 @@ msgQ* createQ()
 /*
     This function pushes (adds to the tail) of the Q.
 
-    @Param  The q to add into, a pointer to the data to add.
+    @Param  The Q to add into, a pointer to the data to add.
 */
 void push(msgQ* q, void* entry)
 {
@@ -54,7 +64,7 @@ void push(msgQ* q, void* entry)
 
 
 /*
-    This function pops (fetches the head) of a q.
+    This function pops (fetches the head of) q.
 
     @Param  The Q to pop.
     @Return  A void pointer to the data of the popped entry.

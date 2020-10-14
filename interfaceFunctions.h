@@ -1,12 +1,12 @@
 #ifndef InterfaceFunctions
 #define InterfaceFunctions
 
-#include <net/ethernet.h>
-#include <linux/if_packet.h>
-#include "linkedList.h"
+#include <linux/if_packet.h> //sockaddr_ll struct.
+#include "linkedList.h" //linkedList.
 
 typedef struct interface interface;
 
+//A struct for storing info about a interface.
 struct interface
 {
   struct sockaddr_ll sock_addr;

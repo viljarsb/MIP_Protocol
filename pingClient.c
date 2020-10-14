@@ -1,14 +1,14 @@
 #include <stdio.h> //printf
 #include <string.h> //strlen, memcpy.
 #include <time.h> //timeout.
-#include <stdbool.h> //boolean values.
-#include <unistd.h> //write and and read REMOVE REMOVE REMOVE REMOVE REMOVE REMOVE
-
+#include <stdbool.h> //Boolean values.
+#include <unistd.h> //close.
 #include "socketFunctions.h"  //create and connect socket.
 #include "applicationFunctions.h" //sendApplicationMsg.
 #include "log.h"  //timestamp.
-#include "protocol.h"
-bool debug = true; //Implicitly true every time.
+bool debug = false; //included just because other parts of program needs it. Has no function here.
+
+#define PING 0x02
 
 int main(int argc, char* argv[])
 {
@@ -19,29 +19,22 @@ int main(int argc, char* argv[])
   char* domainPath;
 
   //Some simple argument control.
-
   if(argc == 2 && strcmp(argv[1], "-h") == 0)
   {
-    printf("Run program with <Destination host> <msg> <ttl> <domain path>\n");
+    printf("Run program with <Destination host> <msg> <domain path>\n");
     exit(EXIT_SUCCESS);
   }
 
-  else if(argc == 5)
+  else if(argc == 4)
   {
     dst_addr = atoi(argv[1]);
     msg = calloc(strlen(argv[2]) + 6, sizeof(char));
     strcat(msg, "PING ");
     strcat(msg, argv[2]);
-    ttl = atoi(argv[3]);
-    if(ttl < 0)
-    {
-      printf("Please supply a zero (undefined) or another positive ttl");
-      exit(EXIT_SUCCESS);
-    }
-    domainPath = argv[4];
+    domainPath = argv[3];
   }
 
-  else if(argc != 5)
+  else if(argc != 4)
   {
     printf("Program can not run.\nAttempt to run with -h for instructions.\n");
     exit(EXIT_SUCCESS);
@@ -60,7 +53,7 @@ int main(int argc, char* argv[])
   sendHandshake(ping_socket, PING);
 
   //Send the msg from the client to the mip-deamon and start a timer.
-  sendApplicationMsg(ping_socket, dst_addr, msg, ttl, strlen(msg));
+  sendApplicationMsg(ping_socket, dst_addr, msg, 0, strlen(msg));
   stopwatch = clock();
 
   FD_ZERO(&set);
@@ -71,18 +64,19 @@ int main(int argc, char* argv[])
   //If response is recived before 1 sec has passed.
   if(rc && FD_ISSET(ping_socket, &set))
   {
-    applicationMsg* msg = calloc(1, sizeof(applicationMsg));
-    readApplicationMsg(ping_socket, msg);
+    applicationMsg* applicationMsg = calloc(1, sizeof(applicationMsg));
+    readApplicationMsg(ping_socket, applicationMsg);
     timestamp();
-    printf("MSG: %s\n", msg -> payload);
+    printf("MSG: %s\n", applicationMsg -> payload);
     printf("Recieved response in %f seconds\n", (double)(clock() - stopwatch)/1000);
+    free(applicationMsg);
   }
 
   //Timer ran out.
   else
   {
     timestamp();
-    printf("Client did not recieve any PONG respone.\nTiming out.");
+    printf("Client did not recieve any PONG respone.\nTiming out.\n");
   }
 
   free(msg);

@@ -1,15 +1,15 @@
 #ifndef APPLICATIONFUNCTIONS
 #define APPLICATIONFUNCTIONS
+#include <stdlib.h> //u_int8_t
 
-#include <stdlib.h>
-
-#define ttl_UNDEFINED 15; //Use if no ttl is defined.
+#define ttl_UNDEFINED 15; //Use if no ttl is defined, no need for larger value. MIP-Headers can only hold 4-bit ttl.
 #define HSK {0x48, 0x53, 0x4b} //HANDSHAKE
-#define HSR {0x41, 0x43, 0x4b} //HANDSHAKE REPLY
+#define HSR {0x48, 0x53, 0x52} //HANDSHAKE-REPLY
 
 typedef struct applicationMsg applicationMsg;
 typedef struct handshakeMsg handshakeMsg;
 
+//Struct to hold data sent between applications running on the same host.
 struct applicationMsg
 {
   u_int8_t address;
@@ -17,6 +17,7 @@ struct applicationMsg
   char payload[1024];
 }__attribute__ ((packed));
 
+//A struct to hold data of a handshake-process.
 struct handshakeMsg
 {
   u_int8_t type[3];

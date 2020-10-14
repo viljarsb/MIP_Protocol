@@ -3,16 +3,18 @@
 #include <stdbool.h> //Boolean values
 #include <stdio.h> //Printf
 #include "log.h" //Timestamp
-#include "applicationFunctions.h" //Signatures of this file.
+#include "applicationFunctions.h" //Signatures and defitions of this file.
 
 extern bool debug; //Extern bool value from the main program.
-u_int8_t HANDSHAKE[3] = HSK;
-u_int8_t HANDSHAKE_REPLY[3] = HSR;
+u_int8_t HANDSHAKE[3] = HSK; //Handshake code to identity applicaiton.
+u_int8_t HANDSHAKE_REPLY[3] = HSR; //A handshake-reply code, in case need of reply.
+
+
 
 /*
     The functions in this file are used to communicate between processes on the
     same node. This file contains functions to send applicaiton data, read
-    applicaiton data as well as sending a handshake to the other process.
+    applicaiton data as well as sending a handshake & handshake-reply to the other process.
 */
 
 
@@ -28,7 +30,7 @@ int sendApplicationMsg(int domainSocket, u_int8_t destination, char* payload, u_
   applicationMsg msg;
   msg.address = destination;
 
-  //If ttl is 0 use the predefined value, if ttl = -1 use ttl = 0, if not use the specified ttl value.
+  //If ttl is 0 use the predefined value, if ttl < 0 use ttl = 0, if not use the specified ttl value.
   if(ttl < 0) {msg.ttl = 0;}
   else {msg.ttl = ttl;}
 
@@ -87,13 +89,21 @@ void sendHandshake(int domainSocket, u_int8_t value)
   memcpy(buffer, &msg, sizeof(handshakeMsg));
   int bytes = sendApplicationMsg(domainSocket, 0, buffer, 0, sizeof(handshakeMsg));
   free(buffer);
+
   if(debug)
   {
     timestamp();
-    printf("SENT HANDSHAKE OVER DOMAIN-SOCKET %d\n", domainSocket);
+    printf("SENT HANDSHAKE OVER DOMAIN-SOCKET %d\n\n", domainSocket);
   }
 }
 
+
+
+/*
+    This function sends a handshake-reply msg over the specified socket.
+
+    @Param  the unix domain-socket to send the handshake over, and a 1-byte value.
+*/
 void sendHandshakeReply(int domainSocket, u_int8_t value)
 {
   handshakeMsg msg;

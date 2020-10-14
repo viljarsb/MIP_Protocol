@@ -1,11 +1,15 @@
-#include "linkedList.h"
+#include "linkedList.h" //Signatures of this file.
 #include <stdlib.h> //free.
 #include <string.h> //memcpy.
+
+
 
 /*
     This file contains functions to create a generic linked list.
     However not all functionlaity is implemented, if needed it must
-    be implemented in other parts of the program.
+    be implemented in other parts of the program. For example
+    if nodes have pointers, the generic free function can not
+    free such memory.
 */
 
 
@@ -14,7 +18,8 @@
     This function create a linkedList.
 
     @Param  The size of the entry elements.
-    @Return  A pointer to a linedList struct, this struct contains a pointer to the first node, and some info such as amount of entries.
+    @Return  A pointer to a linedList struct, this struct contains a pointer to the first node,
+    and some info such as amount of entries and the head.
 */
 list* createLinkedList(int entrySize)
 {
@@ -24,6 +29,8 @@ list* createLinkedList(int entrySize)
   list -> head = NULL;
   return list;
 }
+
+
 
 /*
     This function adds some data into a specified linkedList.
@@ -57,6 +64,8 @@ void addEntry(list* list, void* entry)
 
   list -> entries = list -> entries + 1;
 }
+
+
 
 /*
     This funtions frees the allocated space for nodes and the list.

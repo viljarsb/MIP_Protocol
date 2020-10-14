@@ -1,7 +1,8 @@
-#include <time.h>
-#include <stdio.h>
-#include "log.h"
-//This function only prints out a timestamp for debug purposes. 
+#include <time.h> //time.
+#include <stdio.h> //printf.
+#include "log.h" //Signatures of this file.
+
+//This function only prints out a timestamp for debug purposes.
 void timestamp()
 {
   time_t t = time(NULL);

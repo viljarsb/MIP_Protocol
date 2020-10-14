@@ -1,15 +1,14 @@
-#include "socketFunctions.h"
-#include <sys/socket.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/un.h>
-#include <unistd.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <arpa/inet.h>
-#include "log.h"
-#include "protocol.h"
-extern bool debug;
+#include "socketFunctions.h" //Signatures of this file.
+#include <stdio.h> //printf.
+#include <sys/un.h> //sockaddr.
+#include <unistd.h> //unlink.
+#include <stdbool.h> //Boolean values.
+#include <arpa/inet.h> //SOCK-RAW, AFPACKET etc..
+#include "log.h" //timestamp.
+#include "protocol.h" //Ethertype.
+
+extern bool debug; //Extern debug flag.
+
 
 /*
     This file contains functionality to create both server and client sockets.
@@ -67,7 +66,7 @@ int createDomainServerSocket(char* domain_path)
     the server.
 
     @Param  The domain-path to connect to.
-    @Return  The socket created.
+    @Return  The socket created and connected.
 */
 int createDomainClientSocket(char* domain_path)
 {

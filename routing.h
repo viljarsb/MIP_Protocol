@@ -1,6 +1,6 @@
 #ifndef ROUTING_
 #define ROUTING_
-#include <stdlib.h> //
+#include <stdlib.h> //u_int8_t
 
 //Routing related codes
 #define REQ {0x52, 0x45, 0x51} //REQUEST
@@ -15,22 +15,28 @@ typedef struct routingEntry routingEntry;
 typedef struct updateStructure updateStructure;
 typedef struct routingQuery routingQuery;
 
+//Struct to store routing queries, for requests and responses.
+//Contains the type of the msg and the mip (either the one to lookup or the next hop.)
 struct routingQuery
 {
   u_int8_t type[3];
   u_int8_t mip;
 };
 
+//A hello msg, only contains type. No more info needed.
 struct helloMsg
 {
   u_int8_t type[3];
 };
 
+//Same as hello, just for a cleaner implementation.
 struct keepAlive
 {
   u_int8_t type[3];
 };
 
+//Update struct, meant to store update data from a routing deamon.
+//Contains the type, the amount of nodes in the update msg and the pointer to the data.
 struct updateStructure
 {
   u_int8_t type[3];
@@ -38,6 +44,7 @@ struct updateStructure
   void* data;
 };
 
+//A entry in the routing table.
 struct routingEntry
 {
   u_int8_t mip_address;

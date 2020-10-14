@@ -1,7 +1,7 @@
-#include "arpFunctions.h"
-#include "rawFunctions.h" //sendData
+#include "arpFunctions.h" //Singatures and defintions of this file.
+#include "rawFunctions.h" //sendData.
 #include "interfaceFunctions.h" //Interfaces.
-#include <string.h> //Memcpy.
+#include <string.h> //memcpy.
 #include <stdio.h>  //printf.
 #include <stdbool.h>  //Boolean values.
 #include "log.h"  //timestamp.
@@ -11,10 +11,13 @@ extern list* arpCache; //Extern linkedList of arp-entries from the mip-deamon.
 extern bool debug; //Extern boolean flag from the mip-deamon.
 extern u_int8_t MY_MIP_ADDRESS; //Extern mip-address from the mip-deamon.
 
+
+
 /*
     This file contains functions to perform arp-related operations.
     Such as adding to arp-cache, and fetching enteries and sending
-    of arp-requests and arp-braodcasts.
+    of arp-requests and arp-braodcasts. There is also functionality
+    to store mip-datagrams while waiting for arp-resonses.
 */
 
 
@@ -22,7 +25,7 @@ extern u_int8_t MY_MIP_ADDRESS; //Extern mip-address from the mip-deamon.
 /*
     This functions adds another entry into a arp-cache.
 
-    @Param  a linkedlist (the arp-cache), the mip and the corresponding mac and the interface related to this entry.
+    @Param  a mip-address, the corresponding mac-address and the interface related to this entry.
 */
 void addArpEntry(u_int8_t mip, u_int8_t mac[ETH_ALEN], int interface)
 {
@@ -47,8 +50,8 @@ void addArpEntry(u_int8_t mip, u_int8_t mac[ETH_ALEN], int interface)
 /*
     This function fetches an entry from the arp-cache.
 
-    @Params   a linkedlist (the arp-cache) and the MIP that is to be looked up in the cache.
-    @Return  a ArpCache entry if the MIP-address supplied has a corresponding entry, if not NULL.
+    @Params   A mip-address that is to be looked up in the cache.
+    @Return  a ArpCache entry, if the mip-address supplied has a corresponding entry, if not NULL.
 */
 arpEntry* getCacheEntry(uint8_t mip)
 {
@@ -76,9 +79,9 @@ arpEntry* getCacheEntry(uint8_t mip)
 
 
 /*
-    This function updates the arpEntry in the cache if another host has taken over a MIP.
+    This function updates the arpEntry in the cache if another host has taken over a mip-address.
 
-    @Param  a linkedlist (the arp-cache), a new MIP-address and a new mac-address aswell as the related interface.
+    @Param   The mip-address, a new mac-address aswell as the related interface.
 */
 void updateArpEntry(uint8_t mip, u_int8_t mac[ETH_ALEN], int interface)
 {
@@ -100,8 +103,6 @@ void updateArpEntry(uint8_t mip, u_int8_t mac[ETH_ALEN], int interface)
 
 /*
     This function prints every entry in the arp-cache.
-
-    @Param  a linkedlist (the arpCache).
 */
 void printArpCache()
 {
@@ -128,6 +129,16 @@ void printArpCache()
   printf("\n");
 }
 
+
+
+/*
+    This function is called whenever a arp-response arrives.
+    The function will send all the mip-datagrams that has been waiting
+    for the mac supplied by the arp-response.
+
+    @Param  A raw-socket, a list of waiting entries and the mip-address
+    of the datagrams to be extracted and sent from the list.
+*/
 void sendWaitingMsgs(int socket_fd, list* arpWaitingList, u_int8_t mip)
 {
   if(arpWaitingList -> head == NULL)
@@ -135,15 +146,13 @@ void sendWaitingMsgs(int socket_fd, list* arpWaitingList, u_int8_t mip)
 
 
   node* tempNode = arpWaitingList -> head;
-  node* next;
-  next;
   bool changed = false;
 
-  //Find the node, remove it.
   while(tempNode != NULL)
   {
     struct arpWaitEntry* current = (struct arpWaitEntry*) tempNode -> data;
 
+    //Found a node with data to be sent.
     if(current -> dst == mip)
      {
        if(tempNode == arpWaitingList -> head)
@@ -151,6 +160,7 @@ void sendWaitingMsgs(int socket_fd, list* arpWaitingList, u_int8_t mip)
          arpWaitingList -> head = tempNode -> next;
        }
 
+       //Send the data and free the memory of the node.
        sendData(socket_fd, current -> mip_header, current -> buffer, current -> dst);
        node* temp = tempNode;
        tempNode = tempNode -> next;
@@ -165,6 +175,15 @@ void sendWaitingMsgs(int socket_fd, list* arpWaitingList, u_int8_t mip)
    }
 }
 
+
+
+/*
+    This functions frees all memory related to the arpWaitingList.
+    If the list is empty, just free the list pointer.
+    If not, free all nodes and their data.
+
+    @Param  A linkedList of mip-datagrams waiting for arp-responses.
+*/
 void freeArpList(list* arpWaitingList)
 {
   if(arpWaitingList -> head == NULL)
@@ -174,8 +193,6 @@ void freeArpList(list* arpWaitingList)
   }
 
   node* tempNode = arpWaitingList -> head;
-  node* last;
-  last = tempNode;
 
   //Find the node, remove it.
   while(tempNode != NULL)
@@ -183,19 +200,18 @@ void freeArpList(list* arpWaitingList)
      struct arpWaitEntry* current = (struct arpWaitEntry*) tempNode -> data;
      free(current -> mip_header);
      free(current -> buffer);
-     last = tempNode -> next;
-     free(tempNode);
-     tempNode = last;
      tempNode = tempNode -> next;
    }
    freeListMemory(arpWaitingList);
 }
 
+
+
 /*
     The funtion constructs an arp-response and a mip-header and sends it over to
     another funciton along with the neighbour to send this data to.
 
-    @Param  a socket-fd to send the packet over and a destination MIP-address.
+    @Param  a socket-fd to send the packet over and a destination mip-address.
 */
 void sendArpResponse(int socket_fd, u_int8_t dst_mip)
 {
@@ -213,7 +229,7 @@ void sendArpResponse(int socket_fd, u_int8_t dst_mip)
   //Fill in the fields of the mip-header.
   mip_header -> dst_addr = dst_mip;
   mip_header -> src_addr = MY_MIP_ADDRESS;
-  mip_header -> ttl = 1;
+  mip_header -> ttl = 1; //ttl is one, because of broadcast.
   mip_header -> sdu_length = sizeof(struct arpMsg);
   mip_header -> sdu_type = ARP;
 
@@ -255,7 +271,7 @@ void sendArpBroadcast(int socket_fd, list* interfaces, u_int8_t lookup)
   //Fill in the mip-header.
   mip_header -> dst_addr = 0xFF;
   mip_header -> src_addr = MY_MIP_ADDRESS;
-  mip_header -> ttl = 1;
+  mip_header -> ttl = 1; //ttl one because of broadcast.
   mip_header -> sdu_length = sizeof(struct arpMsg);
   mip_header -> sdu_type = ARP;
 

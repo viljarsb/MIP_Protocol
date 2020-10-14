@@ -3,6 +3,7 @@
 #include "routing.h"
 #include <stdbool.h>
 
+//Struct for storing a entry in the routingtable.
 struct neighbourEntry
 {
   u_int8_t mip;

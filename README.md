@@ -14,7 +14,7 @@ and below (incoming transmissions), by using raw and unix-domain sockets. There 
 
 The 'MIP-Routing-Daemon' also runs permanently on each host. It is responsible for the routing protocol and keeps track of the routing table and the
 the forwarding engine. The main task of the program is to answer queries by the mip daemon for paths for outgoing transmissions. The routing daemon dynamicly discovers 
-other nodes in the network and constructs routing-tables. This process is based on a Distance Vector Routing (DVR) scheme, with Poisoned Reverse loop protection.
+other nodes in the network and constructs routing-tables. This process is based on a Distance Vector Routing (DVR) scheme, with Poisoned Reverse loop protection. If the daemon gets an incoming transmission not addressed to itself, it will also ask the routing daemon for a path to the final destination. 
 
 The repo also contains a simple mininet topology and some test programs. 
 The programs are tested on a virtual network hosted in mininet. 

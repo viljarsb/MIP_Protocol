@@ -17,4 +17,4 @@ the forwarding engine. The main task of the program is to answer queries by the 
 other nodes in the network and constructs routing-tables. This process is based on a Distance Vector Routing (DVR) scheme, with Poisoned Reverse loop protection.
 
 The repo also contains a simple mininet topology and some test programs. 
-Tested on a virtual network hosted in mininet. 
+The programs are tested on a virtual network hosted in mininet. 
